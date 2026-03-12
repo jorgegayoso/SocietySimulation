@@ -1,0 +1,326 @@
+{
+  "_description": "Default model weights — every tunable coefficient in the simulation engine. These define the 'physics' of how a country's economy, demographics, and society interact. They are NOT tied to any government system or party.",
+  "_version": "1.0.0",
+
+  "economy": {
+    "gdp": {
+      "base_growth": 0.02,
+      "momentum_factor": 0.3,
+      "mean_reversion_speed": 0.2,
+      "base_growth_weight": 0.4,
+      "business_dereg_boost": 0.1,
+      "infra_boost": 0.15,
+      "rd_boost": 0.5,
+      "rd_baseline": 0.014,
+      "demo_working_age_effect": 0.1,
+      "demo_working_age_baseline": 0.65,
+      "debt_drag_threshold": 0.80,
+      "debt_drag_coeff": -0.003,
+      "tourism_effect": 0.05,
+      "tourism_baseline": 0.10,
+      "regulation_drag": -0.02,
+      "shock_std": 0.008,
+      "growth_min": -0.08,
+      "growth_max": 0.08
+    },
+
+    "inflation": {
+      "base_rate": 0.02,
+      "spending_pressure_coeff": 0.3,
+      "demand_pull_coeff": 0.5,
+      "demand_pull_threshold": 0.02,
+      "monetary_coeff": -0.3,
+      "monetary_baseline": 0.02,
+      "shock_std": 0.003,
+      "min": -0.01,
+      "max": 0.10
+    },
+
+    "unemployment": {
+      "okun_coeff": -0.4,
+      "okun_trend": 0.02,
+      "labor_reg_effect": 0.01,
+      "business_dereg_effect": 0.005,
+      "immigration_effect": 0.005,
+      "shock_std": 0.004,
+      "min": 0.03,
+      "max": 0.30,
+      "youth_multiplier": 2.3,
+      "youth_shock_std": 0.01,
+      "youth_min": 0.08,
+      "youth_max": 0.55
+    },
+
+    "government_finances": {
+      "tax_auto_stabilizer": 0.15,
+      "tax_min": 0.30,
+      "tax_max": 0.50,
+      "pension_pressure_threshold": 0.20,
+      "pension_pressure_coeff": 0.003,
+      "unemployment_auto_stabilizer_threshold": 0.10,
+      "unemployment_auto_stabilizer_coeff": 0.04,
+      "other_spending": 0.12,
+      "austerity_threshold": 1.20,
+      "austerity_spending_coeff": 0.03,
+      "austerity_tax_coeff": 0.3,
+      "spending_min": 0.35,
+      "spending_max": 0.60,
+      "surplus_debt_reduction": 0.8,
+      "debt_min": 0.0,
+      "debt_max": 2.5
+    },
+
+    "wages": {
+      "gdp_passthrough": 0.6,
+      "inflation_passthrough": 0.4,
+      "min_wage_inflation_floor": 0.8
+    },
+
+    "housing": {
+      "demand_pressure_coeff": 50,
+      "immigration_pressure_coeff": 2,
+      "interest_rate_effect": -100,
+      "interest_rate_baseline": 0.02,
+      "shock_std": 2,
+      "min": 50
+    },
+
+    "tourism": {
+      "env_regulation_effect": -0.005,
+      "stability_effect_coeff": 0.001,
+      "stability_baseline": 50,
+      "shock_std": 0.003,
+      "min": 0.05,
+      "max": 0.18
+    },
+
+    "interest_rate": {
+      "inflation_response": 0.2,
+      "inflation_target": 0.02,
+      "min": 0.0,
+      "max": 0.08,
+      "regime_convergence_speed": 0.3,
+      "regimes": [
+        {"start_year": 1990, "end_year": 1996, "target_rate": 0.08, "label": "pre_euro_convergence"},
+        {"start_year": 1997, "end_year": 1999, "target_rate": 0.04, "label": "euro_convergence"},
+        {"start_year": 2000, "end_year": 2008, "target_rate": 0.035, "label": "early_ecb"},
+        {"start_year": 2009, "end_year": 2015, "target_rate": 0.005, "label": "crisis_zirp"},
+        {"start_year": 2016, "end_year": 2021, "target_rate": 0.0,   "label": "negative_rate_era"},
+        {"start_year": 2022, "end_year": 2025, "target_rate": 0.035, "label": "post_covid_hiking"},
+        {"start_year": 2026, "end_year": 2100, "target_rate": 0.025, "label": "neutral_rate"}
+      ]
+    },
+
+    "structural_unemployment": {
+      "initial_floor": 0.18,
+      "floor_decay_per_year": 0.004,
+      "floor_min": 0.06,
+      "labor_reform_effect": 0.3,
+      "boom_absorption_rate": 0.5,
+      "hysteresis_coeff": 0.1
+    }
+  },
+
+  "demographics": {
+    "fertility": {
+      "affordability_coeff": 0.001,
+      "affordability_baseline": 50,
+      "social_protection_coeff": 0.5,
+      "social_protection_baseline": 0.17,
+      "unemployment_coeff": -0.3,
+      "unemployment_baseline": 0.10,
+      "immigration_fertility_boost": 0.008,
+      "shock_std": 0.01,
+      "min": 0.8,
+      "max": 2.5
+    },
+
+    "life_expectancy": {
+      "healthcare_coeff": 1.0,
+      "healthcare_baseline": 0.06,
+      "wealth_coeff": 0.1,
+      "shock_std": 0.05,
+      "min": 75,
+      "max": 95
+    },
+
+    "migration": {
+      "pull_factor_coeff": 3,
+      "openness_coeff": 30,
+      "openness_baseline": 0.90,
+      "shock_std": 0.5,
+      "min": -5,
+      "max": 15
+    },
+
+    "population": {
+      "natural_growth_replacement": 2.1,
+      "natural_growth_coeff": 0.005
+    },
+
+    "age_structure": {
+      "aging_rate": 0.001,
+      "fertility_offset_coeff": 0.0005,
+      "fertility_offset_baseline": 1.5,
+      "migration_youth_factor": 0.3,
+      "migration_youth_under15": 0.1,
+      "over65_shock_std": 0.0005,
+      "under15_shock_std": 0.0003,
+      "over65_min": 0.10,
+      "over65_max": 0.40,
+      "under15_min": 0.08,
+      "under15_max": 0.25,
+      "median_age_aging_scale": 10,
+      "median_age_migration_scale": 5
+    }
+  },
+
+  "social": {
+    "inequality": {
+      "unemployment_coeff": 0.01,
+      "unemployment_baseline": 0.10,
+      "tax_coeff": -0.01,
+      "tax_baseline": 0.39,
+      "shock_std": 0.002,
+      "min": 0.20,
+      "max": 0.50
+    },
+
+    "poverty": {
+      "base": 0.10,
+      "gini_coeff": 0.3,
+      "unemployment_coeff": 0.2,
+      "shock_std": 0.005,
+      "min": 0.05,
+      "max": 0.40
+    },
+
+    "life_satisfaction": {
+      "income_weight": 0.20,
+      "income_baseline": 30000,
+      "income_scale": 10000,
+      "employment_weight": 0.20,
+      "employment_scale": 20,
+      "health_weight": 0.15,
+      "health_scale": 80,
+      "housing_weight": 0.15,
+      "housing_scale": 12,
+      "safety_weight": 0.10,
+      "safety_scale": 30,
+      "equality_weight": 0.10,
+      "equality_scale": 10,
+      "governance_weight": 0.10,
+      "governance_scale": 15,
+      "adaptation_speed": 0.3,
+      "shock_std": 0.1,
+      "min": 1,
+      "max": 10
+    },
+
+    "trust": {
+      "effectiveness_coeff": 0.001,
+      "effectiveness_baseline": 70,
+      "economy_growth_coeff": 0.3,
+      "economy_unemployment_coeff": -0.2,
+      "economy_unemployment_baseline": 0.10,
+      "corruption_coeff": 0.001,
+      "corruption_baseline": 60,
+      "stability_coeff": 0.02,
+      "stability_baseline": 0.7,
+      "polarization_drag": -0.003,
+      "shock_std": 0.01,
+      "min": 0.10,
+      "max": 0.55
+    },
+
+    "housing_affordability": {
+      "base": 50,
+      "price_coeff": -0.1,
+      "price_baseline": 100,
+      "wage_coeff_divisor": 5000,
+      "wage_baseline": 28000,
+      "shock_std": 1,
+      "min": 10,
+      "max": 90
+    },
+
+    "education_quality": {
+      "spending_coeff": 200,
+      "spending_baseline": 0.046,
+      "change_rate": 0.1,
+      "shock_std": 0.3,
+      "min": 30,
+      "max": 95
+    },
+
+    "healthcare_quality": {
+      "spending_coeff": 100,
+      "spending_baseline": 0.067,
+      "aging_coeff": -50,
+      "aging_baseline": 0.21,
+      "change_rate": 0.1,
+      "shock_std": 0.3,
+      "min": 30,
+      "max": 98
+    },
+
+    "regional_tensions": {
+      "decentralization_coeff": -10,
+      "shock_std": 1,
+      "min": 5,
+      "max": 95
+    },
+
+    "voter_turnout": {
+      "trust_coeff": 0.1,
+      "trust_baseline": 0.30,
+      "satisfaction_coeff": 0.01,
+      "satisfaction_baseline": 6.0,
+      "crisis_coeff": 0.05,
+      "crisis_threshold": 0.15,
+      "shock_std": 0.005,
+      "min": 0.45,
+      "max": 0.85
+    },
+
+    "governance_indices": {
+      "effectiveness_policy_coeff": 5,
+      "corruption_policy_coeff": 5,
+      "stability_coalition_coeff": 5,
+      "stability_coalition_baseline": 0.7,
+      "regulatory_dereg_coeff": 3,
+      "effectiveness_shock_std": 0.3,
+      "corruption_shock_std": 0.3,
+      "stability_shock_std": 0.5,
+      "regulatory_shock_std": 0.3,
+      "index_min": 10,
+      "index_max": 98
+    },
+
+    "environment": {
+      "regulation_coeff": 10,
+      "growth_pollution_coeff": -5,
+      "shock_std": 0.3,
+      "min": 20,
+      "max": 95
+    },
+
+    "mental_health": {
+      "employment_coeff": 20,
+      "inequality_coeff": 20,
+      "housing_coeff": 0.2,
+      "shock_std": 0.5,
+      "min": 20,
+      "max": 95
+    },
+
+    "crime": {
+      "unemployment_coeff": 80,
+      "inequality_coeff": 50,
+      "policing_coeff": 0.1,
+      "shock_std": 1,
+      "min": 15,
+      "max": 150
+    }
+  }
+}

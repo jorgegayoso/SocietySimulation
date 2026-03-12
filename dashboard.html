@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spain — Government System Simulation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,300&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg-deep: #0a0c10;
+    --bg-card: #12151c;
+    --bg-card-hover: #181c26;
+    --bg-surface: #1a1e28;
+    --border: #252a36;
+    --border-active: #3b82f6;
+    --text-primary: #e8eaf0;
+    --text-secondary: #8891a5;
+    --text-muted: #525b6e;
+    --accent-blue: #3b82f6;
+    --accent-cyan: #22d3ee;
+    --accent-amber: #f59e0b;
+    --accent-rose: #f43f5e;
+    --accent-emerald: #10b981;
+    --accent-violet: #8b5cf6;
+    --accent-orange: #f97316;
+    --accent-pink: #ec4899;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* --- HEADER --- */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10, 12, 16, 0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+  }
+  .header-inner {
+    max-width: 1440px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+    font-weight: 700; font-size: 1.1rem; letter-spacing: -0.02em;
+  }
+  .logo-flag {
+    width: 32px; height: 22px; border-radius: 3px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .logo-flag .red { flex: 1; background: #c60b1e; }
+  .logo-flag .yellow { flex: 2; background: #ffc400; }
+  .logo-flag .red2 { flex: 1; background: #c60b1e; }
+  .header-meta {
+    font-size: 0.8rem; color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* --- CATEGORY NAV --- */
+  .nav-bar {
+    max-width: 1440px; margin: 0 auto;
+    padding: 1.25rem 2rem 0;
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .nav-btn {
+    padding: 10px 20px; border-radius: 100px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--text-secondary); font-size: 0.85rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .nav-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  .nav-btn.active {
+    background: var(--accent-blue); border-color: var(--accent-blue);
+    color: #fff; box-shadow: 0 0 20px rgba(59,130,246,0.25);
+  }
+
+  /* --- KPI STRIP --- */
+  .kpi-strip {
+    max-width: 1440px; margin: 1.25rem auto 0; padding: 0 2rem;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;
+  }
+  .kpi {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .kpi-label {
+    font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 0.06em; font-weight: 500;
+  }
+  .kpi-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.3rem; font-weight: 600;
+  }
+  .kpi-change {
+    font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;
+  }
+  .kpi-change.positive { color: var(--accent-emerald); }
+  .kpi-change.negative { color: var(--accent-rose); }
+
+  /* --- CHART GRID --- */
+  .charts-container {
+    max-width: 1440px; margin: 1.5rem auto 3rem; padding: 0 2rem;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px;
+  }
+  .chart-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 20px 16px;
+    transition: border-color 0.2s;
+  }
+  .chart-card:hover { border-color: #333a4a; }
+  .chart-title {
+    font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+  .chart-subtitle {
+    font-size: 0.72rem; color: var(--text-muted); margin-bottom: 14px;
+  }
+  .chart-wrap { position: relative; height: 240px; }
+  .chart-wrap canvas { width: 100% !important; }
+
+  /* --- ELECTION TIMELINE --- */
+  .election-section {
+    max-width: 1440px; margin: 0 auto 3rem; padding: 0 2rem;
+  }
+  .election-section h2 {
+    font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;
+  }
+  .election-timeline {
+    display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px;
+  }
+  .election-card {
+    min-width: 260px; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; flex-shrink: 0;
+  }
+  .election-year {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;
+    color: var(--accent-blue);
+  }
+  .election-coalition {
+    font-size: 0.78rem; color: var(--accent-cyan);
+    margin-bottom: 10px; font-weight: 500;
+  }
+  .election-bar-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+  }
+  .election-party-name {
+    font-size: 0.72rem; width: 50px; text-align: right;
+    color: var(--text-secondary); font-family: 'JetBrains Mono', monospace;
+  }
+  .election-bar-track {
+    flex: 1; height: 14px; background: var(--bg-surface);
+    border-radius: 4px; overflow: hidden;
+  }
+  .election-bar-fill {
+    height: 100%; border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+  .election-seats {
+    font-size: 0.68rem; color: var(--text-muted); width: 32px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* --- GOV TIMELINE (bottom of Politics tab) --- */
+  .gov-timeline {
+    max-width: 1440px; margin: 0 auto 3rem; padding: 0 2rem;
+  }
+  .gov-timeline h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
+  .gov-bar-container {
+    display: flex; height: 48px; border-radius: var(--radius-sm);
+    overflow: hidden; border: 1px solid var(--border);
+  }
+  .gov-bar-segment {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.68rem; font-weight: 600; color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    transition: opacity 0.2s; cursor: default;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+  .gov-bar-segment:hover { opacity: 0.85; }
+  .gov-legend {
+    display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .gov-legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.75rem; color: var(--text-secondary);
+  }
+  .gov-legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    .charts-container { grid-template-columns: 1fr; }
+    .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+    .nav-bar { padding: 1rem 1rem 0; }
+    .charts-container, .election-section, .gov-timeline, .kpi-strip { padding: 0 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-flag"><div class="red"></div><div class="yellow"></div><div class="red2"></div></div>
+      Spain — Government System Simulation
+    </div>
+    <div class="header-meta">2024 → 2054 · D'Hondt PR · seed:42</div>
+  </div>
+</div>
+
+<div class="nav-bar" id="navBar"></div>
+<div class="kpi-strip" id="kpiStrip"></div>
+<div class="charts-container" id="chartsContainer"></div>
+<div id="extraSections"></div>
+
+<script>
+// ── DATA ──
+const SIM = {"simulation": {"system": "Spanish Parliamentary (D'Hondt PR)", "years_simulated": 30, "seed": 42, "start_year": 2024, "end_year": 2054}, "election_history": [{"year": 2027, "vote_shares": {"PSOE": 0.30254197641236497, "PP": 0.39289798490649963, "VOX": 0.13814789385940635, "SUMAR": 0.05544555789496351, "ERC": 0.03679548704680189, "JUNTS": 0.02184614422491208, "PNV": 0.01581304762866543, "BILDU": 0.03651190802638618}, "seats": {"PSOE": 112, "PP": 193, "VOX": 28, "SUMAR": 5, "ERC": 9, "JUNTS": 0, "PNV": 0, "BILDU": 3}, "coalition": ["PP", "VOX"], "stability": 0.7623559091978727}, {"year": 2031, "vote_shares": {"PSOE": 0.36397196140335714, "PP": 0.31951441207562953, "VOX": 0.05342628960582041, "SUMAR": 0.14040028593017395, "ERC": 0.024167564652768165, "JUNTS": 0.040891897145052855, "PNV": 0.005762991437685407, "BILDU": 0.05186459774951254}, "seats": {"PSOE": 180, "PP": 114, "VOX": 3, "SUMAR": 25, "PNV": 2, "JUNTS": 10, "ERC": 6, "BILDU": 10}, "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "stability": 0.7225930442021042}, {"year": 2035, "vote_shares": {"PSOE": 0.3077678035137875, "PP": 0.41012768957059376, "VOX": 0.15183232189071696, "SUMAR": 0.06887384577740813, "ERC": 0.005845842465992477, "JUNTS": 0.03305177869288367, "PNV": 0.01665487562262507, "BILDU": 0.005845842465992477}, "seats": {"PSOE": 103, "PP": 200, "VOX": 35, "SUMAR": 7, "JUNTS": 5, "ERC": 0, "BILDU": 0, "PNV": 0}, "coalition": ["PP", "VOX"], "stability": 0.8082977053619974}, {"year": 2039, "vote_shares": {"PSOE": 0.33092379837301217, "PP": 0.2913974831415369, "VOX": 0.08902745104140282, "SUMAR": 0.1317780352145386, "ERC": 0.0494343774595278, "JUNTS": 0.039747384901326954, "PNV": 0.02837393565708346, "BILDU": 0.039317534211571255}, "seats": {"PSOE": 175, "PP": 108, "VOX": 14, "SUMAR": 31, "JUNTS": 4, "ERC": 10, "PNV": 5, "BILDU": 3}, "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "stability": 0.6912372851710041}, {"year": 2043, "vote_shares": {"PSOE": 0.32228502131688425, "PP": 0.36082691394135874, "VOX": 0.12998791395136758, "SUMAR": 0.08722501674363818, "ERC": 0.005483085172478858, "JUNTS": 0.054132933027899746, "PNV": 0.030255428991702568, "BILDU": 0.00980368685467012}, "seats": {"PSOE": 117, "PP": 174, "VOX": 28, "SUMAR": 11, "JUNTS": 20, "BILDU": 0, "ERC": 0}, "coalition": ["PP", "VOX"], "stability": 0.7588712491712574}, {"year": 2047, "vote_shares": {"PSOE": 0.34697362498655937, "PP": 0.2848823140186554, "VOX": 0.08664060586749202, "SUMAR": 0.1482834057039686, "ERC": 0.0656040094416132, "JUNTS": 0.02381351751230065, "PNV": 0.00485099697079304, "BILDU": 0.03895152549861782}, "seats": {"PSOE": 172, "PP": 100, "VOX": 11, "SUMAR": 35, "PNV": 0, "JUNTS": 3, "ERC": 20, "BILDU": 9}, "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "stability": 0.621833350448774}, {"year": 2051, "vote_shares": {"PSOE": 0.29752430152487974, "PP": 0.3592182662631853, "VOX": 0.1528801209912734, "SUMAR": 0.10826436011302124, "ERC": 0.005297632404974034, "JUNTS": 0.028286564198338204, "PNV": 0.03685507527685427, "BILDU": 0.011673679227473824}, "seats": {"PSOE": 101, "PP": 182, "VOX": 37, "SUMAR": 16, "BILDU": 1, "PNV": 10, "JUNTS": 3}, "coalition": ["PP", "VOX"], "stability": 0.7350418488535564}], "yearly_data": [{"year": 2024, "economy": {"gdp_billion_eur": 1462.0, "gdp_growth_rate": 0.035, "gdp_per_capita_eur": 30800.0, "inflation_rate": 0.028, "unemployment_rate": 0.113, "youth_unemployment_rate": 0.265, "public_debt_pct_gdp": 1.04, "budget_deficit_pct_gdp": -0.032, "tax_revenue_pct_gdp": 0.392, "gov_spending_pct_gdp": 0.455, "healthcare_spending_pct_gdp": 0.067, "education_spending_pct_gdp": 0.046, "defense_spending_pct_gdp": 0.014, "rd_spending_pct_gdp": 0.014, "social_protection_pct_gdp": 0.17, "infrastructure_spending_pct_gdp": 0.02, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.12, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 28400.0, "minimum_wage_monthly_eur": 1134.0, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.0315, "housing_price_index": 100.0, "home_ownership_rate": 0.75}, "demographics": {"population_million": 48.0, "population_growth_rate": 0.01, "fertility_rate": 1.19, "life_expectancy": 84.0, "median_age": 46.8, "pct_under_15": 0.14, "pct_15_64": 0.65, "pct_over_65": 0.21, "dependency_ratio": 0.54, "net_migration_per_1000": 5.0, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 65.0, "government_effectiveness": 72.0, "regulatory_quality": 70.0, "voice_accountability": 78.0, "political_stability": 55.0, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 6.3, "trust_in_government": 0.3, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.33, "poverty_rate": 0.205, "social_mobility_index": 55.0, "voter_turnout": 0.7, "crime_rate_per_100k": 45.0, "housing_affordability": 40.0, "work_life_balance": 6.0, "education_quality": 65.0, "healthcare_quality": 78.0, "environmental_quality": 68.0, "mental_health_index": 62.0, "regional_separatism_tension": 45.0}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR"], "seats": {"PP": 137, "PSOE": 121, "VOX": 33, "SUMAR": 31, "ERC": 7, "JUNTS": 7, "BILDU": 6, "PNV": 5}, "vote_shares": {"PSOE": 0.317, "PP": 0.331, "VOX": 0.122, "SUMAR": 0.123, "ERC": 0.027, "JUNTS": 0.023, "PNV": 0.017, "BILDU": 0.03}, "stability": 0.55, "years_since_election": 1, "years_in_power": 6, "elections_held": 0}}, {"year": 2025, "economy": {"gdp_billion_eur": 1482.4333456192085, "gdp_growth_rate": 0.01397629659316584, "gdp_per_capita_eur": 30884.02803373351, "inflation_rate": 0.02159958414816238, "unemployment_rate": 0.11521119056129357, "youth_unemployment_rate": 0.27200557554196386, "public_debt_pct_gdp": 1.0919937127847377, "budget_deficit_pct_gdp": -0.09084235088104764, "tax_revenue_pct_gdp": 0.4013723498892066, "gov_spending_pct_gdp": 0.49221470077025425, "healthcare_spending_pct_gdp": 0.06865471672036468, "education_spending_pct_gdp": 0.04720839100226331, "defense_spending_pct_gdp": 0.014041888994790563, "rd_spending_pct_gdp": 0.01425985376429399, "social_protection_pct_gdp": 0.17449579283445138, "infrastructure_spending_pct_gdp": 0.020185609831638564, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.1203687323832482, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 28883.527369870666, "minimum_wage_monthly_eur": 1153.5951427392129, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.03181991682963248, "housing_price_index": 109.29363826209251, "home_ownership_rate": 0.75}, "demographics": {"population_million": 48.18790270706016, "population_growth_rate": 0.0039146397304199625, "fertility_rate": 1.1810077226895146, "life_expectancy": 83.99668547245483, "median_age": 46.80084592512826, "pct_under_15": 0.14009327467985155, "pct_15_64": 0.6486892867881427, "pct_over_65": 0.21121743853200567, "dependency_ratio": 0.5415700865838298, "net_migration_per_1000": 6.102716581159214, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.61819939416387, "government_effectiveness": 72.21379584968673, "regulatory_quality": 70.0819931794983, "voice_accountability": 78.0, "political_stability": 54.05224779199103, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.975336866821002, "trust_in_government": 0.2946009806444961, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.32973856881847724, "poverty_rate": 0.22524699129179523, "social_mobility_index": 55.0, "voter_turnout": 0.6986818502638057, "crime_rate_per_100k": 19.080423544515256, "housing_affordability": 48.23267928027716, "work_life_balance": 6.0, "education_quality": 65.09807047860863, "healthcare_quality": 78.40378422270483, "environmental_quality": 68.47055458010585, "mental_health_index": 40.62722583213245, "regional_separatism_tension": 44.87176808357847}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR"], "seats": {"PP": 137, "PSOE": 121, "VOX": 33, "SUMAR": 31, "ERC": 7, "JUNTS": 7, "BILDU": 6, "PNV": 5}, "vote_shares": {"PSOE": 0.317, "PP": 0.331, "VOX": 0.122, "SUMAR": 0.123, "ERC": 0.027, "JUNTS": 0.023, "PNV": 0.017, "BILDU": 0.03}, "stability": 0.54, "years_since_election": 2, "years_in_power": 7, "elections_held": 0}}, {"year": 2026, "economy": {"gdp_billion_eur": 1504.4909158493017, "gdp_growth_rate": 0.014879299831777498, "gdp_per_capita_eur": 31221.340447109233, "inflation_rate": 0.024336117942842163, "unemployment_rate": 0.11305208266589385, "youth_unemployment_rate": 0.2657022970074097, "public_debt_pct_gdp": 1.138454065447986, "budget_deficit_pct_gdp": -0.0911053044570051, "tax_revenue_pct_gdp": 0.4110097153218551, "gov_spending_pct_gdp": 0.5021150197788602, "healthcare_spending_pct_gdp": 0.07034019615566808, "education_spending_pct_gdp": 0.048441135508347076, "defense_spending_pct_gdp": 0.014083652954143816, "rd_spending_pct_gdp": 0.014522953416809528, "social_protection_pct_gdp": 0.1790860234486191, "infrastructure_spending_pct_gdp": 0.02037182586934494, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.11642276609444215, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 29422.552539703454, "minimum_wage_monthly_eur": 1176.054364700806, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.03268714041820091, "housing_price_index": 118.0320039495863, "home_ownership_rate": 0.75}, "demographics": {"population_million": 48.40220011087397, "population_growth_rate": 0.004447120372026758, "fertility_rate": 1.1737988816123381, "life_expectancy": 83.96272309627638, "median_age": 46.80086738343312, "pct_under_15": 0.1397640225321718, "pct_15_64": 0.6475233054268222, "pct_over_65": 0.21271267204100594, "dependency_ratio": 0.5443459588544675, "net_migration_per_1000": 6.652361130092619, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.4840433761391, "government_effectiveness": 72.41128308252289, "regulatory_quality": 69.87627515140815, "voice_accountability": 78.0, "political_stability": 52.85601315559632, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.796598657423252, "trust_in_government": 0.29399715516719016, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3287424327256886, "poverty_rate": 0.2162221322296736, "social_mobility_index": 55.0, "voter_turnout": 0.6992972928437887, "crime_rate_per_100k": 20.817042472036487, "housing_affordability": 48.59572997044298, "work_life_balance": 6.0, "education_quality": 65.39248408223871, "healthcare_quality": 78.61514696129422, "environmental_quality": 68.82271162937106, "mental_health_index": 40.75819790075826, "regional_separatism_tension": 45.052776800248864}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR"], "seats": {"PP": 137, "PSOE": 121, "VOX": 33, "SUMAR": 31, "ERC": 7, "JUNTS": 7, "BILDU": 6, "PNV": 5}, "vote_shares": {"PSOE": 0.317, "PP": 0.331, "VOX": 0.122, "SUMAR": 0.123, "ERC": 0.027, "JUNTS": 0.023, "PNV": 0.017, "BILDU": 0.03}, "stability": 0.53, "years_since_election": 3, "years_in_power": 8, "elections_held": 0}}, {"year": 2027, "economy": {"gdp_billion_eur": 1522.262650296153, "gdp_growth_rate": 0.01181245713060278, "gdp_per_capita_eur": 31450.278020609312, "inflation_rate": 0.006547408380544852, "unemployment_rate": 0.1192056301002098, "youth_unemployment_rate": 0.28839144904391717, "public_debt_pct_gdp": 1.2165395967721555, "budget_deficit_pct_gdp": -0.10042103470989222, "tax_revenue_pct_gdp": 0.400890107360171, "gov_spending_pct_gdp": 0.5013111420700632, "healthcare_spending_pct_gdp": 0.07018168989994013, "education_spending_pct_gdp": 0.0479011912977358, "defense_spending_pct_gdp": 0.01439761697654119, "rd_spending_pct_gdp": 0.014603016132389584, "social_protection_pct_gdp": 0.17553538968701954, "infrastructure_spending_pct_gdp": 0.020711204975458503, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.12190332883401486, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 29708.140710862535, "minimum_wage_monthly_eur": 1187.4696630419453, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02999662209430988, "housing_price_index": 131.6700204061601, "home_ownership_rate": 0.75}, "demographics": {"population_million": 48.50762736237269, "population_growth_rate": 0.002178149986100314, "fertility_rate": 1.1836640671706495, "life_expectancy": 83.96938465808856, "median_age": 46.804327530122436, "pct_under_15": 0.14002252035916576, "pct_15_64": 0.646372677907573, "pct_over_65": 0.21360480173326127, "dependency_ratio": 0.5470950957227703, "net_migration_per_1000": 4.359902207122578, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.27340036259152, "government_effectiveness": 72.28157512164769, "regulatory_quality": 69.81970127344752, "voice_accountability": 78.0, "political_stability": 53.72512508403238, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.699108652297639, "trust_in_government": 0.2960110716909669, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3279421685273428, "poverty_rate": 0.22239143318218113, "social_mobility_index": 55.0, "voter_turnout": 0.6928424692426465, "crime_rate_per_100k": 18.210095843732518, "housing_affordability": 47.898258087924596, "work_life_balance": 6.0, "education_quality": 65.60474183065139, "healthcare_quality": 79.32536240669754, "environmental_quality": 68.50837601946111, "mental_health_index": 41.01134695467871, "regional_separatism_tension": 45.940741013674476}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 112, "PP": 193, "VOX": 28, "SUMAR": 5, "ERC": 9, "JUNTS": 0, "PNV": 0, "BILDU": 3}, "vote_shares": {"PSOE": 0.303, "PP": 0.393, "VOX": 0.138, "SUMAR": 0.055, "ERC": 0.037, "JUNTS": 0.022, "PNV": 0.016, "BILDU": 0.037}, "stability": 0.78, "years_since_election": 0, "years_in_power": 9, "elections_held": 1}}, {"year": 2028, "economy": {"gdp_billion_eur": 1546.088931041589, "gdp_growth_rate": 0.01565188552763913, "gdp_per_capita_eur": 31873.10975842303, "inflation_rate": 0.005133853603851714, "unemployment_rate": 0.11641979838248968, "youth_unemployment_rate": 0.2620881721578078, "public_debt_pct_gdp": 1.294398564199011, "budget_deficit_pct_gdp": -0.10476399831447236, "tax_revenue_pct_gdp": 0.39179997222155677, "gov_spending_pct_gdp": 0.49656397053602913, "healthcare_spending_pct_gdp": 0.07002370333102544, "education_spending_pct_gdp": 0.047367814152636675, "defense_spending_pct_gdp": 0.014718250331626083, "rd_spending_pct_gdp": 0.014683437499427271, "social_protection_pct_gdp": 0.17206219929937153, "infrastructure_spending_pct_gdp": 0.021055883342668738, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.1293259109586074, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 30048.140659550663, "minimum_wage_monthly_eur": 1201.0598647456602, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.027023392815080222, "housing_price_index": 141.00427886438956, "home_ownership_rate": 0.75}, "demographics": {"population_million": 48.651590292489445, "population_growth_rate": 0.002967841099324387, "fertility_rate": 1.1774828172618759, "life_expectancy": 83.99404176393234, "median_age": 46.806581064249386, "pct_under_15": 0.14028419764487918, "pct_15_64": 0.6444073714737637, "pct_over_65": 0.21530843088135712, "dependency_ratio": 0.5518134091374431, "net_migration_per_1000": 5.164310582034206, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.1573110757688, "government_effectiveness": 72.3549022293808, "regulatory_quality": 69.88775147895129, "voice_accountability": 78.0, "political_stability": 53.54473837577706, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.700115053253433, "trust_in_government": 0.30632347334912097, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3306376316729863, "poverty_rate": 0.2174205276611673, "social_mobility_index": 55.0, "voter_turnout": 0.6984412691814081, "crime_rate_per_100k": 19.534349318514494, "housing_affordability": 47.536141795185394, "work_life_balance": 6.0, "education_quality": 65.62312613589977, "healthcare_quality": 79.91498756294615, "environmental_quality": 68.62315845321253, "mental_health_index": 40.974267006234925, "regional_separatism_tension": 45.84958574095183}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 112, "PP": 193, "VOX": 28, "SUMAR": 5, "ERC": 9, "JUNTS": 0, "PNV": 0, "BILDU": 3}, "vote_shares": {"PSOE": 0.303, "PP": 0.393, "VOX": 0.138, "SUMAR": 0.055, "ERC": 0.037, "JUNTS": 0.022, "PNV": 0.016, "BILDU": 0.037}, "stability": 0.78, "years_since_election": 1, "years_in_power": 10, "elections_held": 1}}, {"year": 2029, "economy": {"gdp_billion_eur": 1545.1130395570167, "gdp_growth_rate": -0.0006312000978590675, "gdp_per_capita_eur": 31758.736564784856, "inflation_rate": 0.013680521390969395, "unemployment_rate": 0.1267004618888156, "youth_unemployment_rate": 0.28591179950022255, "public_debt_pct_gdp": 1.3849001209070513, "budget_deficit_pct_gdp": -0.10857356334462398, "tax_revenue_pct_gdp": 0.38122716971309756, "gov_spending_pct_gdp": 0.48980073305772154, "healthcare_spending_pct_gdp": 0.06986602140466765, "education_spending_pct_gdp": 0.046840205477630646, "defense_spending_pct_gdp": 0.015046130209336, "rd_spending_pct_gdp": 0.01476432792505777, "social_protection_pct_gdp": 0.16866253436464773, "infrastructure_spending_pct_gdp": 0.021406411267173756, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.13298073305074734, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 30201.190518376523, "minimum_wage_monthly_eur": 1214.2047648828504, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.025759497093274103, "housing_price_index": 149.37579201458917, "home_ownership_rate": 0.75}, "demographics": {"population_million": 48.780685609848305, "population_growth_rate": 0.002653465520505028, "fertility_rate": 1.1835888503042278, "life_expectancy": 83.95108963035611, "median_age": 46.80932796900543, "pct_under_15": 0.1401372087350821, "pct_15_64": 0.6427152624335376, "pct_over_65": 0.2171475288313803, "dependency_ratio": 0.5558989469359439, "net_migration_per_1000": 4.835396829304486, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 63.80513585136373, "government_effectiveness": 72.80341304362075, "regulatory_quality": 70.09809122411984, "voice_accountability": 78.0, "political_stability": 53.870380342709915, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.469737212380731, "trust_in_government": 0.308052535103425, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3322663876140938, "poverty_rate": 0.22550889039843466, "social_mobility_index": 55.0, "voter_turnout": 0.6953480973832131, "crime_rate_per_100k": 20.73997601161876, "housing_affordability": 44.29304130524275, "work_life_balance": 6.0, "education_quality": 65.90548973855982, "healthcare_quality": 79.90886437966333, "environmental_quality": 68.9160005856059, "mental_health_index": 38.83881330197988, "regional_separatism_tension": 48.40082489790682}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 112, "PP": 193, "VOX": 28, "SUMAR": 5, "ERC": 9, "JUNTS": 0, "PNV": 0, "BILDU": 3}, "vote_shares": {"PSOE": 0.303, "PP": 0.393, "VOX": 0.138, "SUMAR": 0.055, "ERC": 0.037, "JUNTS": 0.022, "PNV": 0.016, "BILDU": 0.037}, "stability": 0.78, "years_since_election": 2, "years_in_power": 11, "elections_held": 1}}, {"year": 2030, "economy": {"gdp_billion_eur": 1577.6433240741403, "gdp_growth_rate": 0.021053659948692176, "gdp_per_capita_eur": 32341.556998445114, "inflation_rate": 0.017152349583991148, "unemployment_rate": 0.12893633152081874, "youth_unemployment_rate": 0.29707427434892253, "public_debt_pct_gdp": 1.439397737911898, "budget_deficit_pct_gdp": -0.10949126070083165, "tax_revenue_pct_gdp": 0.37519766419600403, "gov_spending_pct_gdp": 0.4846889248968357, "healthcare_spending_pct_gdp": 0.0697111264377108, "education_spending_pct_gdp": 0.0463265382865673, "defense_spending_pct_gdp": 0.015376133178460207, "rd_spending_pct_gdp": 0.014844406717676917, "social_protection_pct_gdp": 0.16538867389591866, "infrastructure_spending_pct_gdp": 0.021757266107900446, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.13322178054704126, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 30789.90642655783, "minimum_wage_monthly_eur": 1237.873423257133, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.025189967010072332, "housing_price_index": 158.48001966046903, "home_ownership_rate": 0.75}, "demographics": {"population_million": 48.96822396059111, "population_growth_rate": 0.0038445206006891847, "fertility_rate": 1.168849556750214, "life_expectancy": 83.95332128433893, "median_age": 46.81023565080707, "pct_under_15": 0.14024959743098583, "pct_15_64": 0.6417428109300014, "pct_over_65": 0.21800759163901276, "dependency_ratio": 0.5582566457594113, "net_migration_per_1000": 6.061545465569628, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 63.63325369500073, "government_effectiveness": 72.98911469986166, "regulatory_quality": 70.23610322284009, "voice_accountability": 78.0, "political_stability": 54.686417514625994, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.446721187996853, "trust_in_government": 0.321426895696539, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3315373433016625, "poverty_rate": 0.2232711564030316, "social_mobility_index": 55.0, "voter_turnout": 0.6945429343249045, "crime_rate_per_100k": 20.501046007314475, "housing_affordability": 46.158081006092765, "work_life_balance": 6.0, "education_quality": 65.89877605139239, "healthcare_quality": 79.5607642221271, "environmental_quality": 68.79026705815292, "mental_health_index": 40.65917932481615, "regional_separatism_tension": 49.122343340479794}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 112, "PP": 193, "VOX": 28, "SUMAR": 5, "ERC": 9, "JUNTS": 0, "PNV": 0, "BILDU": 3}, "vote_shares": {"PSOE": 0.303, "PP": 0.393, "VOX": 0.138, "SUMAR": 0.055, "ERC": 0.037, "JUNTS": 0.022, "PNV": 0.016, "BILDU": 0.037}, "stability": 0.75, "years_since_election": 3, "years_in_power": 12, "elections_held": 1}}, {"year": 2031, "economy": {"gdp_billion_eur": 1601.4506909361319, "gdp_growth_rate": 0.015090462146102022, "gdp_per_capita_eur": 32703.875317694907, "inflation_rate": 0.0307969886267771, "unemployment_rate": 0.1321458585854267, "youth_unemployment_rate": 0.3009758324187606, "public_debt_pct_gdp": 1.4767121780288999, "budget_deficit_pct_gdp": -0.10507699749201377, "tax_revenue_pct_gdp": 0.38713606892740604, "gov_spending_pct_gdp": 0.4922130664194198, "healthcare_spending_pct_gdp": 0.07159959917398677, "education_spending_pct_gdp": 0.04763774351065306, "defense_spending_pct_gdp": 0.015417064764109114, "rd_spending_pct_gdp": 0.01513612865333537, "social_protection_pct_gdp": 0.17008493512908743, "infrastructure_spending_pct_gdp": 0.02197531144981448, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.14220930997818643, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 31447.98133622032, "minimum_wage_monthly_eur": 1268.3716422470845, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02734936473542775, "housing_price_index": 171.0625710730722, "home_ownership_rate": 0.75}, "demographics": {"population_million": 49.190428779631574, "population_growth_rate": 0.0045377349037467336, "fertility_rate": 1.1565934726140903, "life_expectancy": 83.99239881248448, "median_age": 46.81005973942507, "pct_under_15": 0.13976344146415676, "pct_15_64": 0.6413136929382509, "pct_over_65": 0.2189228655975923, "dependency_ratio": 0.559299311727444, "net_migration_per_1000": 6.783940921332233, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 63.677823142597035, "government_effectiveness": 73.18313360538157, "regulatory_quality": 70.32651467476836, "voice_accountability": 78.0, "political_stability": 54.46534351797853, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.35697675308669, "trust_in_government": 0.3324643646403607, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.32967942150097274, "poverty_rate": 0.22648167213999698, "social_mobility_index": 55.0, "voter_turnout": 0.6839440119687711, "crime_rate_per_100k": 20.45599195241745, "housing_affordability": 44.19090653692141, "work_life_balance": 6.0, "education_quality": 65.63303319512562, "healthcare_quality": 79.71761141908537, "environmental_quality": 69.15563090666458, "mental_health_index": 39.31290711368414, "regional_separatism_tension": 48.70583872202928}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 180, "PP": 114, "VOX": 3, "SUMAR": 25, "PNV": 2, "JUNTS": 10, "ERC": 6, "BILDU": 10}, "vote_shares": {"PSOE": 0.364, "PP": 0.32, "VOX": 0.053, "SUMAR": 0.14, "ERC": 0.024, "JUNTS": 0.041, "PNV": 0.006, "BILDU": 0.052}, "stability": 0.73, "years_since_election": 0, "years_in_power": 0, "elections_held": 2}}, {"year": 2032, "economy": {"gdp_billion_eur": 1634.6885652962458, "gdp_growth_rate": 0.020754853426479578, "gdp_per_capita_eur": 33231.842166277806, "inflation_rate": 0.02198590310160546, "unemployment_rate": 0.13364093613689193, "youth_unemployment_rate": 0.3074017106196645, "public_debt_pct_gdp": 1.5154109476390547, "budget_deficit_pct_gdp": -0.10346857996319031, "tax_revenue_pct_gdp": 0.40057254961717087, "gov_spending_pct_gdp": 0.5040411295803612, "healthcare_spending_pct_gdp": 0.07355755331019315, "education_spending_pct_gdp": 0.04899879735970615, "defense_spending_pct_gdp": 0.015458492999815337, "rd_spending_pct_gdp": 0.015436393407505059, "social_protection_pct_gdp": 0.17496085804346712, "infrastructure_spending_pct_gdp": 0.02219762238890536, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.14093916002677626, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 32116.165190295163, "minimum_wage_monthly_eur": 1295.3210811714769, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.027746545355748845, "housing_price_index": 189.46527973481966, "home_ownership_rate": 0.75}, "demographics": {"population_million": 49.38106075875942, "population_growth_rate": 0.0038753876283911548, "fertility_rate": 1.1501253666457423, "life_expectancy": 83.99271960014826, "median_age": 46.81085424857765, "pct_under_15": 0.13977004201904986, "pct_15_64": 0.6391813605784891, "pct_over_65": 0.22104859740246108, "dependency_ratio": 0.5645011911720222, "net_migration_per_1000": 6.1369938982822445, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 63.686407066565145, "government_effectiveness": 73.84255690856695, "regulatory_quality": 69.95728088324549, "voice_accountability": 78.0, "political_stability": 55.570090714968686, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.390922644099694, "trust_in_government": 0.3318482929476485, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.33155861172564094, "poverty_rate": 0.22398503091800293, "social_mobility_index": 55.0, "voter_turnout": 0.670512928365912, "crime_rate_per_100k": 19.399476294127112, "housing_affordability": 41.18601705195918, "work_life_balance": 6.0, "education_quality": 65.7117540802552, "healthcare_quality": 79.64317250757027, "environmental_quality": 69.43678646505772, "mental_health_index": 40.515683503879615, "regional_separatism_tension": 48.6858486421288}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 180, "PP": 114, "VOX": 3, "SUMAR": 25, "PNV": 2, "JUNTS": 10, "ERC": 6, "BILDU": 10}, "vote_shares": {"PSOE": 0.364, "PP": 0.32, "VOX": 0.053, "SUMAR": 0.14, "ERC": 0.024, "JUNTS": 0.041, "PNV": 0.006, "BILDU": 0.052}, "stability": 0.75, "years_since_election": 1, "years_in_power": 1, "elections_held": 2}}, {"year": 2033, "economy": {"gdp_billion_eur": 1636.3262801606104, "gdp_growth_rate": 0.0010018513000780071, "gdp_per_capita_eur": 33136.71790394563, "inflation_rate": 0.021939030538784394, "unemployment_rate": 0.143401367503047, "youth_unemployment_rate": 0.33675654565762103, "public_debt_pct_gdp": 1.5813943604042544, "budget_deficit_pct_gdp": -0.10226199392787716, "tax_revenue_pct_gdp": 0.4115998190476249, "gov_spending_pct_gdp": 0.513861812975502, "healthcare_spending_pct_gdp": 0.07555256786076395, "education_spending_pct_gdp": 0.0503872670889346, "defense_spending_pct_gdp": 0.015499692198030615, "rd_spending_pct_gdp": 0.015740105618469044, "social_protection_pct_gdp": 0.17994069300717278, "infrastructure_spending_pct_gdp": 0.022420342339915425, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.14559084644466785, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 32417.309574964227, "minimum_wage_monthly_eur": 1318.0555521773585, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.028134351463505722, "housing_price_index": 203.59543893685603, "home_ownership_rate": 0.75}, "demographics": {"population_million": 49.59997673521344, "population_growth_rate": 0.004433197122344015, "fertility_rate": 1.1172388123553707, "life_expectancy": 83.98662086291527, "median_age": 46.81069459150969, "pct_under_15": 0.13919477293097426, "pct_15_64": 0.6383324177461567, "pct_over_65": 0.22247280932286903, "dependency_ratio": 0.5665818814761596, "net_migration_per_1000": 6.773104711974084, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 63.601146666598645, "government_effectiveness": 74.07481433247662, "regulatory_quality": 69.6573959747928, "voice_accountability": 78.0, "political_stability": 55.15585617503106, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.579092869059716, "trust_in_government": 0.3342613514971389, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3288963589724503, "poverty_rate": 0.23434002164895512, "social_mobility_index": 55.0, "voter_turnout": 0.6722459809102908, "crime_rate_per_100k": 18.604646242820614, "housing_affordability": 40.83322033410674, "work_life_balance": 6.0, "education_quality": 65.42743772163817, "healthcare_quality": 79.41336127737331, "environmental_quality": 69.37941909407371, "mental_health_index": 39.042394128693395, "regional_separatism_tension": 48.51210578057088}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 180, "PP": 114, "VOX": 3, "SUMAR": 25, "PNV": 2, "JUNTS": 10, "ERC": 6, "BILDU": 10}, "vote_shares": {"PSOE": 0.364, "PP": 0.32, "VOX": 0.053, "SUMAR": 0.14, "ERC": 0.024, "JUNTS": 0.041, "PNV": 0.006, "BILDU": 0.052}, "stability": 0.73, "years_since_election": 2, "years_in_power": 2, "elections_held": 2}}, {"year": 2034, "economy": {"gdp_billion_eur": 1650.0933399958635, "gdp_growth_rate": 0.008413395300295435, "gdp_per_capita_eur": 33268.02649131853, "inflation_rate": 0.024887160373711335, "unemployment_rate": 0.15439873882906469, "youth_unemployment_rate": 0.3558300960573585, "public_debt_pct_gdp": 1.6266268994291033, "budget_deficit_pct_gdp": -0.09940011865012449, "tax_revenue_pct_gdp": 0.42465933595393196, "gov_spending_pct_gdp": 0.5240594546040565, "healthcare_spending_pct_gdp": 0.07762783482057228, "education_spending_pct_gdp": 0.051833298572374814, "defense_spending_pct_gdp": 0.015541528244254766, "rd_spending_pct_gdp": 0.01605374457987041, "social_protection_pct_gdp": 0.18512925784411766, "infrastructure_spending_pct_gdp": 0.022648167063812567, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.14940044310110273, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 32903.66327189052, "minimum_wage_monthly_eur": 1344.2976801041575, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02911178353824799, "housing_price_index": 218.7514508584966, "home_ownership_rate": 0.75}, "demographics": {"population_million": 49.82272068559671, "population_growth_rate": 0.0044908075576804984, "fertility_rate": 1.091873000097496, "life_expectancy": 83.971370385344, "median_age": 46.81035792660209, "pct_under_15": 0.13934366210711382, "pct_15_64": 0.6364823544981171, "pct_over_65": 0.22417398339476916, "dependency_ratio": 0.5711354650020519, "net_migration_per_1000": 6.891109938400746, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 63.895046377209816, "government_effectiveness": 74.26226004008566, "regulatory_quality": 68.91332805163216, "voice_accountability": 78.0, "political_stability": 54.753881049404164, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.553986928324526, "trust_in_government": 0.33474649248319416, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3329082716742737, "poverty_rate": 0.23059052240546432, "social_mobility_index": 55.0, "voter_turnout": 0.6694812047718826, "crime_rate_per_100k": 21.894109510999183, "housing_affordability": 38.88370187840428, "work_life_balance": 6.0, "education_quality": 66.23895509741712, "healthcare_quality": 79.90075114951632, "environmental_quality": 69.06393663344952, "mental_health_index": 37.99504443394348, "regional_separatism_tension": 46.88915212538813}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 180, "PP": 114, "VOX": 3, "SUMAR": 25, "PNV": 2, "JUNTS": 10, "ERC": 6, "BILDU": 10}, "vote_shares": {"PSOE": 0.364, "PP": 0.32, "VOX": 0.053, "SUMAR": 0.14, "ERC": 0.024, "JUNTS": 0.041, "PNV": 0.006, "BILDU": 0.052}, "stability": 0.75, "years_since_election": 3, "years_in_power": 3, "elections_held": 2}}, {"year": 2035, "economy": {"gdp_billion_eur": 1684.418336598809, "gdp_growth_rate": 0.0208018514898262, "gdp_per_capita_eur": 33808.23675262999, "inflation_rate": 0.008683733376498266, "unemployment_rate": 0.14897016782107805, "youth_unemployment_rate": 0.322400935412686, "public_debt_pct_gdp": 1.679772042175212, "budget_deficit_pct_gdp": -0.10267420385174497, "tax_revenue_pct_gdp": 0.4188847918024773, "gov_spending_pct_gdp": 0.5215589956542223, "healthcare_spending_pct_gdp": 0.07741757620366928, "education_spending_pct_gdp": 0.05122158660513595, "defense_spending_pct_gdp": 0.015908355711463592, "rd_spending_pct_gdp": 0.016134497454533093, "social_protection_pct_gdp": 0.18133359592001827, "infrastructure_spending_pct_gdp": 0.023029373835760494, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.15538927264242763, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 33428.62819758766, "minimum_wage_monthly_eur": 1365.7454175770122, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.026848530213547644, "housing_price_index": 233.3209596734595, "home_ownership_rate": 0.75}, "demographics": {"population_million": 49.942029918528064, "population_growth_rate": 0.002394675186131449, "fertility_rate": 1.0816623862931432, "life_expectancy": 84.03040793109561, "median_age": 46.81312899377394, "pct_under_15": 0.13923816188336544, "pct_15_64": 0.6347040554336352, "pct_over_65": 0.22605778268299934, "dependency_ratio": 0.5755374358161167, "net_migration_per_1000": 4.819288552100156, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 63.94521644744423, "government_effectiveness": 74.81601474083288, "regulatory_quality": 68.85313527008853, "voice_accountability": 78.0, "political_stability": 55.09304249928493, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.414379400538342, "trust_in_government": 0.31706486660216093, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3338769029839011, "poverty_rate": 0.22735421224286811, "social_mobility_index": 55.0, "voter_turnout": 0.6671905045592584, "crime_rate_per_100k": 21.48619788668322, "housing_affordability": 37.90995572515735, "work_life_balance": 6.0, "education_quality": 66.41835250704848, "healthcare_quality": 79.8159582548734, "environmental_quality": 68.68942721164201, "mental_health_index": 37.29266694341117, "regional_separatism_tension": 46.465512088923596}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 103, "PP": 200, "VOX": 35, "SUMAR": 7, "JUNTS": 5, "ERC": 0, "BILDU": 0, "PNV": 0}, "vote_shares": {"PSOE": 0.308, "PP": 0.41, "VOX": 0.152, "SUMAR": 0.069, "ERC": 0.006, "JUNTS": 0.033, "PNV": 0.017, "BILDU": 0.006}, "stability": 0.82, "years_since_election": 0, "years_in_power": 0, "elections_held": 3}}, {"year": 2036, "economy": {"gdp_billion_eur": 1717.1301474891998, "gdp_growth_rate": 0.019420241503926385, "gdp_per_capita_eur": 34382.466036931335, "inflation_rate": 0.016963023752250245, "unemployment_rate": 0.15277008412989684, "youth_unemployment_rate": 0.3617114858552615, "public_debt_pct_gdp": 1.717695026549368, "budget_deficit_pct_gdp": -0.10041833815431717, "tax_revenue_pct_gdp": 0.413852162203113, "gov_spending_pct_gdp": 0.5142705003574302, "healthcare_spending_pct_gdp": 0.07721285642913119, "education_spending_pct_gdp": 0.050631419430200546, "defense_spending_pct_gdp": 0.016274942924799172, "rd_spending_pct_gdp": 0.016213733169213596, "social_protection_pct_gdp": 0.17771268505962112, "infrastructure_spending_pct_gdp": 0.02340781081831123, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.16261390911473447, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 34044.96366288126, "minimum_wage_monthly_eur": 1390.9261498655023, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.026241134963997693, "housing_price_index": 241.8197987493029, "home_ownership_rate": 0.75}, "demographics": {"population_million": 50.07281346034214, "population_growth_rate": 0.002618706969408822, "fertility_rate": 1.0462038345636429, "life_expectancy": 84.06516084650967, "median_age": 46.81543737558612, "pct_under_15": 0.139764910105952, "pct_15_64": 0.6333336138363617, "pct_over_65": 0.2269014760576864, "dependency_ratio": 0.5789466691063334, "net_migration_per_1000": 5.127745458543006, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.37335426277525, "government_effectiveness": 75.08557852896749, "regulatory_quality": 69.508548659588, "voice_accountability": 78.0, "political_stability": 56.422105974739345, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.425394484195618, "trust_in_government": 0.3155339833552292, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.33734076271903046, "poverty_rate": 0.22224260412721597, "social_mobility_index": 55.0, "voter_turnout": 0.6573447532251645, "crime_rate_per_100k": 20.17235466522817, "housing_affordability": 37.02838907346226, "work_life_balance": 6.0, "education_quality": 66.65071033292675, "healthcare_quality": 79.95073923906973, "environmental_quality": 67.73200633610688, "mental_health_index": 37.98820193818213, "regional_separatism_tension": 44.70968480010568}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 103, "PP": 200, "VOX": 35, "SUMAR": 7, "JUNTS": 5, "ERC": 0, "BILDU": 0, "PNV": 0}, "vote_shares": {"PSOE": 0.308, "PP": 0.41, "VOX": 0.152, "SUMAR": 0.069, "ERC": 0.006, "JUNTS": 0.033, "PNV": 0.017, "BILDU": 0.006}, "stability": 0.78, "years_since_election": 1, "years_in_power": 1, "elections_held": 3}}, {"year": 2037, "economy": {"gdp_billion_eur": 1771.7703299673237, "gdp_growth_rate": 0.03182064129385849, "gdp_per_capita_eur": 35383.878147182055, "inflation_rate": 0.018301205225858805, "unemployment_rate": 0.1432718905119535, "youth_unemployment_rate": 0.34962435764840444, "public_debt_pct_gdp": 1.7290717767914288, "budget_deficit_pct_gdp": -0.09804102045997548, "tax_revenue_pct_gdp": 0.4112047377772268, "gov_spending_pct_gdp": 0.5092457582372023, "healthcare_spending_pct_gdp": 0.07700929307222323, "education_spending_pct_gdp": 0.05004980940062613, "defense_spending_pct_gdp": 0.016648847908792896, "rd_spending_pct_gdp": 0.01629311814538664, "social_protection_pct_gdp": 0.17417909002287546, "infrastructure_spending_pct_gdp": 0.02379130784463142, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.16348403076828658, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 34944.188755589166, "minimum_wage_monthly_eur": 1427.6644970832538, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.025901376009169454, "housing_price_index": 254.3301499752638, "home_ownership_rate": 0.75}, "demographics": {"population_million": 50.19526790188917, "population_growth_rate": 0.0024455274845702024, "fertility_rate": 1.025274882669563, "life_expectancy": 84.04879520832802, "median_age": 46.8179307803688, "pct_under_15": 0.1400897276175138, "pct_15_64": 0.6320040310734122, "pct_over_65": 0.22790624130907394, "dependency_ratio": 0.5822683888607066, "net_migration_per_1000": 5.0043968115474335, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.93962183708744, "government_effectiveness": 74.84011102037509, "regulatory_quality": 69.57253468689412, "voice_accountability": 78.0, "political_stability": 57.16865804102997, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.57463609486882, "trust_in_government": 0.316018105715019, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3367486495835075, "poverty_rate": 0.23126599881875, "social_mobility_index": 55.0, "voter_turnout": 0.6551781761544041, "crime_rate_per_100k": 22.530124692692205, "housing_affordability": 36.166471429649675, "work_life_balance": 6.0, "education_quality": 66.79230701322429, "healthcare_quality": 79.75439030658302, "environmental_quality": 67.1389760080702, "mental_health_index": 37.240702172915455, "regional_separatism_tension": 45.64004899418994}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 103, "PP": 200, "VOX": 35, "SUMAR": 7, "JUNTS": 5, "ERC": 0, "BILDU": 0, "PNV": 0}, "vote_shares": {"PSOE": 0.308, "PP": 0.41, "VOX": 0.152, "SUMAR": 0.069, "ERC": 0.006, "JUNTS": 0.033, "PNV": 0.017, "BILDU": 0.006}, "stability": 0.77, "years_since_election": 2, "years_in_power": 2, "elections_held": 3}}, {"year": 2038, "economy": {"gdp_billion_eur": 1805.4077767373476, "gdp_growth_rate": 0.01898521845697928, "gdp_per_capita_eur": 35967.68883206615, "inflation_rate": 0.013067968204372527, "unemployment_rate": 0.14273335233634735, "youth_unemployment_rate": 0.33445080507177244, "public_debt_pct_gdp": 1.7707673675764017, "budget_deficit_pct_gdp": -0.09845432775173013, "tax_revenue_pct_gdp": 0.406732021294851, "gov_spending_pct_gdp": 0.5051863490465811, "healthcare_spending_pct_gdp": 0.07680491917973993, "education_spending_pct_gdp": 0.04947106539325837, "defense_spending_pct_gdp": 0.017033881181533813, "rd_spending_pct_gdp": 0.016373421150687982, "social_protection_pct_gdp": 0.17069686886633975, "infrastructure_spending_pct_gdp": 0.024183674247792736, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.17306651875065743, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 35524.90240901949, "minimum_wage_monthly_eur": 1451.3898802012513, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02451496965004396, "housing_price_index": 264.4661086600389, "home_ownership_rate": 0.75}, "demographics": {"population_million": 50.328615167305266, "population_growth_rate": 0.0026565704495637, "fertility_rate": 0.997137673733263, "life_expectancy": 84.10897801420938, "median_age": 46.820007130672074, "pct_under_15": 0.13973883627618697, "pct_15_64": 0.6311617961519363, "pct_over_65": 0.2290993675718767, "dependency_ratio": 0.5843797994377896, "net_migration_per_1000": 5.282433131151169, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.95492997058915, "government_effectiveness": 74.76358761948966, "regulatory_quality": 69.61226205919043, "voice_accountability": 78.0, "political_stability": 56.83391163396467, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.39644197458199, "trust_in_government": 0.33024259691689073, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.33717570647597356, "poverty_rate": 0.22599569830935767, "social_mobility_index": 55.0, "voter_turnout": 0.6444267695801962, "crime_rate_per_100k": 20.509027587793607, "housing_affordability": 35.0117673032896, "work_life_balance": 6.0, "education_quality": 67.33275861436121, "healthcare_quality": 80.44074160883258, "environmental_quality": 66.88559716070853, "mental_health_index": 37.17445836131282, "regional_separatism_tension": 45.948616404587}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 103, "PP": 200, "VOX": 35, "SUMAR": 7, "JUNTS": 5, "ERC": 0, "BILDU": 0, "PNV": 0}, "vote_shares": {"PSOE": 0.308, "PP": 0.41, "VOX": 0.152, "SUMAR": 0.069, "ERC": 0.006, "JUNTS": 0.033, "PNV": 0.017, "BILDU": 0.006}, "stability": 0.78, "years_since_election": 3, "years_in_power": 3, "elections_held": 3}}, {"year": 2039, "economy": {"gdp_billion_eur": 1818.4902462278749, "gdp_growth_rate": 0.0072462684935197495, "gdp_per_capita_eur": 36132.3322762358, "inflation_rate": 0.029783969138285276, "unemployment_rate": 0.14745703572852084, "youth_unemployment_rate": 0.3308518810287623, "public_debt_pct_gdp": 1.7949258870553204, "budget_deficit_pct_gdp": -0.09062505160805556, "tax_revenue_pct_gdp": 0.4208368058332078, "gov_spending_pct_gdp": 0.5114618574412634, "healthcare_spending_pct_gdp": 0.0788078003104343, "education_spending_pct_gdp": 0.05083881779954845, "defense_spending_pct_gdp": 0.017084758854904673, "rd_spending_pct_gdp": 0.016688795555869752, "social_protection_pct_gdp": 0.1754381476386004, "infrastructure_spending_pct_gdp": 0.02441796860663327, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 36102.58523645293, "minimum_wage_monthly_eur": 1485.9724013208784, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.026471763477701016, "housing_price_index": 274.1959946006226, "home_ownership_rate": 0.75}, "demographics": {"population_million": 50.51899067415473, "population_growth_rate": 0.0037826494175650397, "fertility_rate": 0.963784523696871, "life_expectancy": 84.15260280683576, "median_age": 46.82027524413036, "pct_under_15": 0.14008527467022872, "pct_15_64": 0.6291726911036425, "pct_over_65": 0.23074203422612877, "dependency_ratio": 0.5893887546929016, "net_migration_per_1000": 6.487924361143919, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.73462957932098, "government_effectiveness": 74.6313408668395, "regulatory_quality": 69.62176320633978, "voice_accountability": 78.0, "political_stability": 56.39600445669216, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.292035583513212, "trust_in_government": 0.3252228289390962, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3335144855077276, "poverty_rate": 0.23520941710893242, "social_mobility_index": 55.0, "voter_turnout": 0.6426777074447045, "crime_rate_per_100k": 21.64619675337799, "housing_affordability": 35.39700476028869, "work_life_balance": 6.0, "education_quality": 67.67624759128553, "healthcare_quality": 80.45573870598581, "environmental_quality": 66.49872172645881, "mental_health_index": 37.64035210393876, "regional_separatism_tension": 44.54774004464762}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 175, "PP": 108, "VOX": 14, "SUMAR": 31, "JUNTS": 4, "ERC": 10, "PNV": 5, "BILDU": 3}, "vote_shares": {"PSOE": 0.331, "PP": 0.291, "VOX": 0.089, "SUMAR": 0.132, "ERC": 0.049, "JUNTS": 0.04, "PNV": 0.028, "BILDU": 0.039}, "stability": 0.68, "years_since_election": 0, "years_in_power": 0, "elections_held": 4}}, {"year": 2040, "economy": {"gdp_billion_eur": 1832.5115974402727, "gdp_growth_rate": 0.00771043520386352, "gdp_per_capita_eur": 36273.71752654149, "inflation_rate": 0.02686916565562099, "unemployment_rate": 0.15507585598783352, "youth_unemployment_rate": 0.35061162731736556, "public_debt_pct_gdp": 1.8205520880752093, "budget_deficit_pct_gdp": -0.08858016556943071, "tax_revenue_pct_gdp": 0.4353911696418453, "gov_spending_pct_gdp": 0.523971335211276, "healthcare_spending_pct_gdp": 0.08083499421104935, "education_spending_pct_gdp": 0.05222529142926106, "defense_spending_pct_gdp": 0.01713509528703161, "rd_spending_pct_gdp": 0.017005877821588307, "social_protection_pct_gdp": 0.18024864603004204, "infrastructure_spending_pct_gdp": 0.02465131926231884, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 36657.62376027328, "minimum_wage_monthly_eur": 1517.9138722094958, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.027845596608825213, "housing_price_index": 285.5701554917917, "home_ownership_rate": 0.75}, "demographics": {"population_million": 50.669265904519854, "population_growth_rate": 0.0029746285181032075, "fertility_rate": 0.9226223590816698, "life_expectancy": 84.15757772307948, "median_age": 46.821608381207064, "pct_under_15": 0.14003326106495262, "pct_15_64": 0.6279010771461324, "pct_over_65": 0.2320656617889149, "dependency_ratio": 0.5926075561855875, "net_migration_per_1000": 5.777908615527803, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.77311435145825, "government_effectiveness": 74.69535886028065, "regulatory_quality": 69.56130867746707, "voice_accountability": 78.0, "political_stability": 56.12443830651779, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.320845076052736, "trust_in_government": 0.31882579335447847, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.33099548611574225, "poverty_rate": 0.23598805741338644, "social_mobility_index": 55.0, "voter_turnout": 0.6342852561728124, "crime_rate_per_100k": 22.609048656145763, "housing_affordability": 31.9636542953179, "work_life_balance": 6.0, "education_quality": 68.01730835892808, "healthcare_quality": 80.64220430290723, "environmental_quality": 66.22759265780574, "mental_health_index": 37.083796784004896, "regional_separatism_tension": 45.7919324714686}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 175, "PP": 108, "VOX": 14, "SUMAR": 31, "JUNTS": 4, "ERC": 10, "PNV": 5, "BILDU": 3}, "vote_shares": {"PSOE": 0.331, "PP": 0.291, "VOX": 0.089, "SUMAR": 0.132, "ERC": 0.049, "JUNTS": 0.04, "PNV": 0.028, "BILDU": 0.039}, "stability": 0.65, "years_since_election": 1, "years_in_power": 1, "elections_held": 4}}, {"year": 2041, "economy": {"gdp_billion_eur": 1871.8010020706763, "gdp_growth_rate": 0.02144019425868026, "gdp_per_capita_eur": 36941.54570144869, "inflation_rate": 0.030751742481871333, "unemployment_rate": 0.15347828495325827, "youth_unemployment_rate": 0.3526386236281809, "public_debt_pct_gdp": 1.8089912195334286, "budget_deficit_pct_gdp": -0.08285388675232136, "tax_revenue_pct_gdp": 0.45242137871206506, "gov_spending_pct_gdp": 0.5352752654643864, "healthcare_spending_pct_gdp": 0.08289123796083944, "education_spending_pct_gdp": 0.053633756695475904, "defense_spending_pct_gdp": 0.017185019266772857, "rd_spending_pct_gdp": 0.017325395661399158, "social_protection_pct_gdp": 0.18513864484147327, "infrastructure_spending_pct_gdp": 0.02488428323265499, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 37580.106027311704, "minimum_wage_monthly_eur": 1556.111891785505, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02999594510519948, "housing_price_index": 297.43298990514546, "home_ownership_rate": 0.75}, "demographics": {"population_million": 50.79335411307619, "population_growth_rate": 0.002448983744705635, "fertility_rate": 0.8787996530843974, "life_expectancy": 84.20690137897657, "median_age": 46.82357347577959, "pct_under_15": 0.13927710916259786, "pct_15_64": 0.628637414266091, "pct_over_65": 0.23208547657131112, "dependency_ratio": 0.5907420991915665, "net_migration_per_1000": 5.356603618314213, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.86540620010223, "government_effectiveness": 74.52138016391031, "regulatory_quality": 69.92585023106659, "voice_accountability": 78.0, "political_stability": 55.81714958702683, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.2326397829429805, "trust_in_government": 0.31747751394073603, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3254829686434006, "poverty_rate": 0.23368567478077534, "social_mobility_index": 55.0, "voter_turnout": 0.6235677925726423, "crime_rate_per_100k": 20.99207595433438, "housing_affordability": 31.009209454767902, "work_life_balance": 6.0, "education_quality": 68.35326863630502, "healthcare_quality": 80.36010084230882, "environmental_quality": 66.43516891083486, "mental_health_index": 36.018699674839965, "regional_separatism_tension": 46.905262521832576}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 175, "PP": 108, "VOX": 14, "SUMAR": 31, "JUNTS": 4, "ERC": 10, "PNV": 5, "BILDU": 3}, "vote_shares": {"PSOE": 0.331, "PP": 0.291, "VOX": 0.089, "SUMAR": 0.132, "ERC": 0.049, "JUNTS": 0.04, "PNV": 0.028, "BILDU": 0.039}, "stability": 0.64, "years_since_election": 2, "years_in_power": 2, "elections_held": 4}}, {"year": 2042, "economy": {"gdp_billion_eur": 1889.5196258527062, "gdp_growth_rate": 0.009466083073162488, "gdp_per_capita_eur": 37200.134916199015, "inflation_rate": 0.02473617897475141, "unemployment_rate": 0.15947793484002587, "youth_unemployment_rate": 0.3656053399019381, "public_debt_pct_gdp": 1.8272311268204955, "budget_deficit_pct_gdp": -0.08073534510868646, "tax_revenue_pct_gdp": 0.4677568485326545, "gov_spending_pct_gdp": 0.5484921936413409, "healthcare_spending_pct_gdp": 0.08497107097126518, "education_spending_pct_gdp": 0.05506050755981735, "defense_spending_pct_gdp": 0.017234406802321495, "rd_spending_pct_gdp": 0.017646483514035742, "social_protection_pct_gdp": 0.19009169661334188, "infrastructure_spending_pct_gdp": 0.025116246056048515, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 38165.38316207606, "minimum_wage_monthly_eur": 1586.905701593461, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.03094318090014976, "housing_price_index": 309.35912122491885, "home_ownership_rate": 0.75}, "demographics": {"population_million": 50.98921033110474, "population_growth_rate": 0.003855941814603182, "fertility_rate": 0.8506489929107075, "life_expectancy": 84.24185707847181, "median_age": 46.82332759517522, "pct_under_15": 0.13905211159849612, "pct_15_64": 0.6275870029168098, "pct_over_65": 0.23336088548469397, "dependency_ratio": 0.5934045723578433, "net_migration_per_1000": 6.830587069577688, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.89628377979332, "government_effectiveness": 74.17575303342106, "regulatory_quality": 69.56427388472326, "voice_accountability": 78.0, "political_stability": 55.4232242783221, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.199966120652889, "trust_in_government": 0.31652117504039123, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.320585176656923, "poverty_rate": 0.23150140088166438, "social_mobility_index": 55.0, "voter_turnout": 0.6229863736994747, "crime_rate_per_100k": 19.815876116453268, "housing_affordability": 29.195554619533617, "work_life_balance": 6.0, "education_quality": 68.84743487514586, "healthcare_quality": 80.02342579420143, "environmental_quality": 67.06557840513328, "mental_health_index": 36.987237845129954, "regional_separatism_tension": 45.92638071451456}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 175, "PP": 108, "VOX": 14, "SUMAR": 31, "JUNTS": 4, "ERC": 10, "PNV": 5, "BILDU": 3}, "vote_shares": {"PSOE": 0.331, "PP": 0.291, "VOX": 0.089, "SUMAR": 0.132, "ERC": 0.049, "JUNTS": 0.04, "PNV": 0.028, "BILDU": 0.039}, "stability": 0.61, "years_since_election": 3, "years_in_power": 3, "elections_held": 4}}, {"year": 2043, "economy": {"gdp_billion_eur": 1902.4877104234135, "gdp_growth_rate": 0.006863164792403444, "gdp_per_capita_eur": 37311.57431286687, "inflation_rate": 0.0127634888354551, "unemployment_rate": 0.1593214697961851, "youth_unemployment_rate": 0.3625530069955555, "public_debt_pct_gdp": 1.8760406888660466, "budget_deficit_pct_gdp": -0.08562996283769436, "tax_revenue_pct_gdp": 0.4609405679879474, "gov_spending_pct_gdp": 0.5465705308256418, "healthcare_spending_pct_gdp": 0.08476376117799055, "education_spending_pct_gdp": 0.05444160736997889, "defense_spending_pct_gdp": 0.01762184884070525, "rd_spending_pct_gdp": 0.017737203062819756, "social_protection_pct_gdp": 0.18638215909475675, "infrastructure_spending_pct_gdp": 0.025527682988566943, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 38517.393727236005, "minimum_wage_monthly_eur": 1603.1092641576272, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02949587866724078, "housing_price_index": 322.5282396903471, "home_ownership_rate": 0.75}, "demographics": {"population_million": 51.06507806122833, "population_growth_rate": 0.0014879173384118776, "fertility_rate": 0.818006660194651, "life_expectancy": 84.27206820211914, "median_age": 46.826517171525445, "pct_under_15": 0.1386987292445185, "pct_15_64": 0.6259532078016679, "pct_over_65": 0.23534806295381358, "dependency_ratio": 0.5975635040069132, "net_migration_per_1000": 4.540282433186518, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 65.1856076996559, "government_effectiveness": 74.43335717119238, "regulatory_quality": 69.76820736557588, "voice_accountability": 78.0, "political_stability": 56.18781284777753, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.239515051417893, "trust_in_government": 0.3123086190039303, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.32315254749586114, "poverty_rate": 0.22625186777507922, "social_mobility_index": 55.0, "voter_turnout": 0.6182942000927532, "crime_rate_per_100k": 21.97217728409065, "housing_affordability": 29.688190604847385, "work_life_balance": 6.0, "education_quality": 68.71213276508229, "healthcare_quality": 80.31324692948368, "environmental_quality": 66.85793362410884, "mental_health_index": 36.720161411138946, "regional_separatism_tension": 47.614025808796725}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 117, "PP": 174, "VOX": 28, "SUMAR": 11, "JUNTS": 20, "BILDU": 0, "ERC": 0}, "vote_shares": {"PSOE": 0.322, "PP": 0.361, "VOX": 0.13, "SUMAR": 0.087, "ERC": 0.005, "JUNTS": 0.054, "PNV": 0.03, "BILDU": 0.01}, "stability": 0.76, "years_since_election": 0, "years_in_power": 0, "elections_held": 5}}, {"year": 2044, "economy": {"gdp_billion_eur": 1921.2824325824995, "gdp_growth_rate": 0.00987902421451283, "gdp_per_capita_eur": 37624.19456754444, "inflation_rate": 0.010960587602146158, "unemployment_rate": 0.15562071885880557, "youth_unemployment_rate": 0.3578686509877018, "public_debt_pct_gdp": 1.920834065927278, "budget_deficit_pct_gdp": -0.08482281335937053, "tax_revenue_pct_gdp": 0.4554544485631035, "gov_spending_pct_gdp": 0.540277261922474, "healthcare_spending_pct_gdp": 0.0845607202089076, "education_spending_pct_gdp": 0.05384079885863907, "defense_spending_pct_gdp": 0.018010792418255744, "rd_spending_pct_gdp": 0.017826729762871647, "social_protection_pct_gdp": 0.1828208934629456, "infrastructure_spending_pct_gdp": 0.025938250588883747, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 38914.57159368427, "minimum_wage_monthly_eur": 1619.6399651113456, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02768799618767001, "housing_price_index": 331.9799125733167, "home_ownership_rate": 0.75}, "demographics": {"population_million": 51.15980590759524, "population_growth_rate": 0.0018550416441806758, "fertility_rate": 0.8, "life_expectancy": 84.34402381580858, "median_age": 46.829091751916316, "pct_under_15": 0.1380738237213853, "pct_15_64": 0.6257398514978245, "pct_over_65": 0.23618632478079019, "dependency_ratio": 0.5981082195840881, "net_migration_per_1000": 4.950279739418771, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 65.06297298058468, "government_effectiveness": 74.38827623987001, "regulatory_quality": 70.08164413821144, "voice_accountability": 78.0, "political_stability": 55.517615552611844, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.325750755199336, "trust_in_government": 0.3092528354812075, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.32308237066117934, "poverty_rate": 0.2212181163768809, "social_mobility_index": 55.0, "voter_turnout": 0.6095313370969218, "crime_rate_per_100k": 21.11058382331441, "housing_affordability": 29.555237951420494, "work_life_balance": 6.0, "education_quality": 68.89097817120451, "healthcare_quality": 80.67113737108545, "environmental_quality": 66.93248339711657, "mental_health_index": 36.3337716042473, "regional_separatism_tension": 48.94284276257757}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 117, "PP": 174, "VOX": 28, "SUMAR": 11, "JUNTS": 20, "BILDU": 0, "ERC": 0}, "vote_shares": {"PSOE": 0.322, "PP": 0.361, "VOX": 0.13, "SUMAR": 0.087, "ERC": 0.005, "JUNTS": 0.054, "PNV": 0.03, "BILDU": 0.01}, "stability": 0.73, "years_since_election": 1, "years_in_power": 1, "elections_held": 5}}, {"year": 2045, "economy": {"gdp_billion_eur": 1972.771607920667, "gdp_growth_rate": 0.026799378615541852, "gdp_per_capita_eur": 38560.967402493356, "inflation_rate": 0.0077058544374839855, "unemployment_rate": 0.15341256799413416, "youth_unemployment_rate": 0.3542817461275115, "public_debt_pct_gdp": 1.9344686232194677, "budget_deficit_pct_gdp": -0.08038384797014336, "tax_revenue_pct_gdp": 0.4528787850302534, "gov_spending_pct_gdp": 0.5332626330003968, "healthcare_spending_pct_gdp": 0.08435524300031778, "education_spending_pct_gdp": 0.053238047555484176, "defense_spending_pct_gdp": 0.0184140564422335, "rd_spending_pct_gdp": 0.017918006613143824, "social_protection_pct_gdp": 0.17928031167927605, "infrastructure_spending_pct_gdp": 0.026361440673453217, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 39660.25140604391, "minimum_wage_monthly_eur": 1650.6754558237867, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.025229167075166807, "housing_price_index": 341.3099272551134, "home_ownership_rate": 0.75}, "demographics": {"population_million": 51.25241440878386, "population_growth_rate": 0.0018101808547883137, "fertility_rate": 0.8, "life_expectancy": 84.35800113428556, "median_age": 46.831733623491274, "pct_under_15": 0.1377173503172898, "pct_15_64": 0.6249403368836943, "pct_over_65": 0.23734231279901583, "dependency_ratio": 0.6001527521596143, "net_migration_per_1000": 4.905418950026409, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 65.22628837426804, "government_effectiveness": 74.16609801916357, "regulatory_quality": 70.18385223488025, "voice_accountability": 78.0, "political_stability": 55.326237769916865, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.433563053812663, "trust_in_government": 0.32210356514866767, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.32236732817779545, "poverty_rate": 0.2342924543206474, "social_mobility_index": 55.0, "voter_turnout": 0.601726849288922, "crime_rate_per_100k": 23.39710054401623, "housing_affordability": 27.106721635921364, "work_life_balance": 6.0, "education_quality": 69.65999267170419, "healthcare_quality": 81.30202781676073, "environmental_quality": 66.88902891042194, "mental_health_index": 35.15233453190412, "regional_separatism_tension": 49.40339999061424}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 117, "PP": 174, "VOX": 28, "SUMAR": 11, "JUNTS": 20, "BILDU": 0, "ERC": 0}, "vote_shares": {"PSOE": 0.322, "PP": 0.361, "VOX": 0.13, "SUMAR": 0.087, "ERC": 0.005, "JUNTS": 0.054, "PNV": 0.03, "BILDU": 0.01}, "stability": 0.75, "years_since_election": 2, "years_in_power": 2, "elections_held": 5}}, {"year": 2046, "economy": {"gdp_billion_eur": 2036.702597185022, "gdp_growth_rate": 0.03240668560297203, "gdp_per_capita_eur": 39738.66637658271, "inflation_rate": 0.014488686025586615, "unemployment_rate": 0.14259446555404956, "youth_unemployment_rate": 0.3251330522387193, "public_debt_pct_gdp": 1.918013900251282, "budget_deficit_pct_gdp": -0.07349125167283937, "tax_revenue_pct_gdp": 0.4511727866452763, "gov_spending_pct_gdp": 0.5246640383181157, "healthcare_spending_pct_gdp": 0.08414761596634042, "education_spending_pct_gdp": 0.052634341380645266, "defense_spending_pct_gdp": 0.01883167805265875, "rd_spending_pct_gdp": 0.01801093651788682, "social_protection_pct_gdp": 0.17576762063532672, "infrastructure_spending_pct_gdp": 0.02679709374280797, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 40661.25575712141, "minimum_wage_monthly_eur": 1692.3376555052705, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02412690428028413, "housing_price_index": 350.1558963271974, "home_ownership_rate": 0.75}, "demographics": {"population_million": 51.39488450730326, "population_growth_rate": 0.0027797734050747404, "fertility_rate": 0.8, "life_expectancy": 84.37395431605209, "median_age": 46.8329211062408, "pct_under_15": 0.13746168001125036, "pct_15_64": 0.6244043045401027, "pct_over_65": 0.238134015448647, "dependency_ratio": 0.601526435242207, "net_migration_per_1000": 5.875011500312835, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 65.21206642825399, "government_effectiveness": 74.29492104354865, "regulatory_quality": 70.41041436961207, "voice_accountability": 78.0, "political_stability": 55.78780457853075, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.391430334684495, "trust_in_government": 0.35062003184255114, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.32122414254043924, "poverty_rate": 0.22807732349915152, "social_mobility_index": 55.0, "voter_turnout": 0.5940066149309258, "crime_rate_per_100k": 22.206460944489137, "housing_affordability": 27.72350096214394, "work_life_balance": 6.0, "education_quality": 69.6810255088455, "healthcare_quality": 81.49791564790763, "environmental_quality": 66.33479786557261, "mental_health_index": 36.479116216785236, "regional_separatism_tension": 49.173193864594616}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 117, "PP": 174, "VOX": 28, "SUMAR": 11, "JUNTS": 20, "BILDU": 0, "ERC": 0}, "vote_shares": {"PSOE": 0.322, "PP": 0.361, "VOX": 0.13, "SUMAR": 0.087, "ERC": 0.005, "JUNTS": 0.054, "PNV": 0.03, "BILDU": 0.01}, "stability": 0.78, "years_since_election": 3, "years_in_power": 3, "elections_held": 5}}, {"year": 2047, "economy": {"gdp_billion_eur": 2048.4688909847177, "gdp_growth_rate": 0.005777129079109706, "gdp_per_capita_eur": 39857.44711020079, "inflation_rate": 0.029933824271032104, "unemployment_rate": 0.14757631145277633, "youth_unemployment_rate": 0.331759249882892, "public_debt_pct_gdp": 1.9142019124245058, "budget_deficit_pct_gdp": -0.06454598737056771, "tax_revenue_pct_gdp": 0.4676106041518969, "gov_spending_pct_gdp": 0.5321565915224646, "healthcare_spending_pct_gdp": 0.08636836019555996, "education_spending_pct_gdp": 0.054127787539553565, "defense_spending_pct_gdp": 0.018843220119556598, "rd_spending_pct_gdp": 0.01836873091815891, "social_protection_pct_gdp": 0.18074251076408648, "infrastructure_spending_pct_gdp": 0.027067608755359428, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 41289.05770472722, "minimum_wage_monthly_eur": 1732.8641658949866, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02611366913449055, "housing_price_index": 366.63652649605376, "home_ownership_rate": 0.75}, "demographics": {"population_million": 51.50775103748752, "population_growth_rate": 0.0021960654502146282, "fertility_rate": 0.8, "life_expectancy": 84.44178010120146, "median_age": 46.83498415092262, "pct_under_15": 0.13711282318971274, "pct_15_64": 0.623342751562314, "pct_over_65": 0.23954442524797326, "dependency_ratio": 0.6042538354599485, "net_migration_per_1000": 5.291303545452724, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 65.21309579776103, "government_effectiveness": 74.04701624750943, "regulatory_quality": 70.07466684605113, "voice_accountability": 78.0, "political_stability": 55.784952034041474, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.4029134973192905, "trust_in_government": 0.3552817898455025, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3154749223492703, "poverty_rate": 0.2152991821637375, "social_mobility_index": 55.0, "voter_turnout": 0.5907881259163716, "crime_rate_per_100k": 20.575378628433572, "housing_affordability": 26.384827076576265, "work_life_balance": 6.0, "education_quality": 69.75183269308822, "healthcare_quality": 81.30432202974092, "environmental_quality": 66.52868986200774, "mental_health_index": 35.63578072003012, "regional_separatism_tension": 47.940809358007456}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 172, "PP": 100, "VOX": 11, "SUMAR": 35, "PNV": 0, "JUNTS": 3, "ERC": 20, "BILDU": 9}, "vote_shares": {"PSOE": 0.347, "PP": 0.285, "VOX": 0.087, "SUMAR": 0.148, "ERC": 0.066, "JUNTS": 0.024, "PNV": 0.005, "BILDU": 0.039}, "stability": 0.7, "years_since_election": 0, "years_in_power": 0, "elections_held": 6}}, {"year": 2048, "economy": {"gdp_billion_eur": 2081.54374599881, "gdp_growth_rate": 0.016146134881351783, "gdp_per_capita_eur": 40412.24289687693, "inflation_rate": 0.024492604536893003, "unemployment_rate": 0.15126296343311735, "youth_unemployment_rate": 0.3313846701200912, "public_debt_pct_gdp": 1.8969224926270112, "budget_deficit_pct_gdp": -0.05980911907698189, "tax_revenue_pct_gdp": 0.48563632858944855, "gov_spending_pct_gdp": 0.5454454476664304, "healthcare_spending_pct_gdp": 0.08858372966456031, "education_spending_pct_gdp": 0.05562049746026008, "defense_spending_pct_gdp": 0.0188544450705566, "rd_spending_pct_gdp": 0.018723390062691254, "social_protection_pct_gdp": 0.18571890439199634, "infrastructure_spending_pct_gdp": 0.02733318445411369, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 42093.56354644703, "minimum_wage_monthly_eur": 1766.8180512801216, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.02701219004186915, "housing_price_index": 376.6576804204207, "home_ownership_rate": 0.75}, "demographics": {"population_million": 51.6668466495839, "population_growth_rate": 0.0030887703091635977, "fertility_rate": 0.8, "life_expectancy": 84.39207827621715, "median_age": 46.83570813831602, "pct_under_15": 0.13689476023310113, "pct_15_64": 0.6216076041946598, "pct_over_65": 0.24149763557223908, "dependency_ratio": 0.6087319287150236, "net_migration_per_1000": 6.184008404401693, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 65.22279757785903, "government_effectiveness": 74.04603638475403, "regulatory_quality": 70.24575088651531, "voice_accountability": 78.0, "political_stability": 55.308950982037885, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.429426148921318, "trust_in_government": 0.3619585257069652, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3121540035187178, "poverty_rate": 0.2261510781523689, "social_mobility_index": 55.0, "voter_turnout": 0.5976069983342804, "crime_rate_per_100k": 19.77176385632481, "housing_affordability": 25.22535853133224, "work_life_balance": 6.0, "education_quality": 69.98999146339924, "healthcare_quality": 81.12793781738301, "environmental_quality": 66.47574053905377, "mental_health_index": 36.23198346475577, "regional_separatism_tension": 47.531740133012974}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 172, "PP": 100, "VOX": 11, "SUMAR": 35, "PNV": 0, "JUNTS": 3, "ERC": 20, "BILDU": 9}, "vote_shares": {"PSOE": 0.347, "PP": 0.285, "VOX": 0.087, "SUMAR": 0.148, "ERC": 0.066, "JUNTS": 0.024, "PNV": 0.005, "BILDU": 0.039}, "stability": 0.65, "years_since_election": 1, "years_in_power": 1, "elections_held": 6}}, {"year": 2049, "economy": {"gdp_billion_eur": 2091.422232470658, "gdp_growth_rate": 0.004745750114950256, "gdp_per_capita_eur": 40478.99897307747, "inflation_rate": 0.024149674937909038, "unemployment_rate": 0.1581349393979695, "youth_unemployment_rate": 0.36668593364546886, "public_debt_pct_gdp": 1.8970146128552947, "budget_deficit_pct_gdp": -0.05490716379822258, "tax_revenue_pct_gdp": 0.5018922035556741, "gov_spending_pct_gdp": 0.5567993673538967, "healthcare_spending_pct_gdp": 0.09079440867839315, "education_spending_pct_gdp": 0.0571128459383292, "defense_spending_pct_gdp": 0.018865372633629713, "rd_spending_pct_gdp": 0.019075109791577484, "social_protection_pct_gdp": 0.19069977127029444, "infrastructure_spending_pct_gdp": 0.027594105379027224, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 42620.04121752053, "minimum_wage_monthly_eur": 1800.9525165703976, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.027842125029450958, "housing_price_index": 390.6868399725635, "home_ownership_rate": 0.75}, "demographics": {"population_million": 51.853004229018325, "population_growth_rate": 0.003603037373211177, "fertility_rate": 0.8, "life_expectancy": 84.37785639663957, "median_age": 46.83566072511335, "pct_under_15": 0.13690666412676059, "pct_15_64": 0.6199294709677904, "pct_over_65": 0.24316386490544908, "dependency_ratio": 0.613086724912223, "net_migration_per_1000": 6.698275468449273, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 65.23503130359482, "government_effectiveness": 73.77967476122002, "regulatory_quality": 70.39201184922277, "voice_accountability": 78.0, "political_stability": 53.926562141564844, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.38793530459942, "trust_in_government": 0.36122534458605265, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.30937728229186456, "poverty_rate": 0.22051217534645795, "social_mobility_index": 55.0, "voter_turnout": 0.5945559958580738, "crime_rate_per_100k": 20.125877091878884, "housing_affordability": 23.836140126711605, "work_life_balance": 6.0, "education_quality": 70.2493717809073, "healthcare_quality": 80.7921167275992, "environmental_quality": 66.98410697663431, "mental_health_index": 35.39026554192228, "regional_separatism_tension": 47.480663227395475}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 172, "PP": 100, "VOX": 11, "SUMAR": 35, "PNV": 0, "JUNTS": 3, "ERC": 20, "BILDU": 9}, "vote_shares": {"PSOE": 0.347, "PP": 0.285, "VOX": 0.087, "SUMAR": 0.148, "ERC": 0.066, "JUNTS": 0.024, "PNV": 0.005, "BILDU": 0.039}, "stability": 0.61, "years_since_election": 2, "years_in_power": 2, "elections_held": 6}}, {"year": 2050, "economy": {"gdp_billion_eur": 2100.8598214278945, "gdp_growth_rate": 0.004512522058296843, "gdp_per_capita_eur": 40515.68183299585, "inflation_rate": 0.022833470736332247, "unemployment_rate": 0.15488472931366756, "youth_unemployment_rate": 0.35803964525217896, "public_debt_pct_gdp": 1.906406042674242, "budget_deficit_pct_gdp": -0.06152399572555445, "tax_revenue_pct_gdp": 0.5062731315156976, "gov_spending_pct_gdp": 0.5677971272412521, "healthcare_spending_pct_gdp": 0.09306185071062108, "education_spending_pct_gdp": 0.05864631331603415, "defense_spending_pct_gdp": 0.018876314220599804, "rd_spending_pct_gdp": 0.019433688627172187, "social_protection_pct_gdp": 0.19581938923142048, "infrastructure_spending_pct_gdp": 0.027857702314703935, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 43124.70092876088, "minimum_wage_monthly_eur": 1833.850113838105, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.028408819176717406, "housing_price_index": 404.853668557392, "home_ownership_rate": 0.75}, "demographics": {"population_million": 52.01680307393232, "population_growth_rate": 0.003158907518464053, "fertility_rate": 0.8, "life_expectancy": 84.42046786248446, "median_age": 46.8362795066928, "pct_under_15": 0.1367498074989356, "pct_15_64": 0.6181892517196823, "pct_over_65": 0.24506094078138205, "dependency_ratio": 0.6176276071093024, "net_migration_per_1000": 6.254145613702148, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.92365903295524, "government_effectiveness": 73.42995806207955, "regulatory_quality": 69.99326077066458, "voice_accountability": 78.0, "political_stability": 52.49007732520167, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.418007696768785, "trust_in_government": 0.37138495511844904, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3047671381572945, "poverty_rate": 0.22010076208006013, "social_mobility_index": 55.0, "voter_turnout": 0.5977677747916952, "crime_rate_per_100k": 18.879492916222098, "housing_affordability": 22.21930002522528, "work_life_balance": 6.0, "education_quality": 70.18654004940758, "healthcare_quality": 80.61639854475868, "environmental_quality": 67.40875450349066, "mental_health_index": 34.59514559731319, "regional_separatism_tension": 45.1519944340462}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PSOE", "SUMAR", "ERC", "BILDU"], "seats": {"PSOE": 172, "PP": 100, "VOX": 11, "SUMAR": 35, "PNV": 0, "JUNTS": 3, "ERC": 20, "BILDU": 9}, "vote_shares": {"PSOE": 0.347, "PP": 0.285, "VOX": 0.087, "SUMAR": 0.148, "ERC": 0.066, "JUNTS": 0.024, "PNV": 0.005, "BILDU": 0.039}, "stability": 0.61, "years_since_election": 3, "years_in_power": 3, "elections_held": 6}}, {"year": 2051, "economy": {"gdp_billion_eur": 2140.5515801099878, "gdp_growth_rate": 0.018893101899162167, "gdp_per_capita_eur": 41151.156042165596, "inflation_rate": 0.009909337797572332, "unemployment_rate": 0.15684485362484488, "youth_unemployment_rate": 0.36814876138622155, "public_debt_pct_gdp": 1.915571136928269, "budget_deficit_pct_gdp": -0.06433821641020887, "tax_revenue_pct_gdp": 0.5007590647729017, "gov_spending_pct_gdp": 0.5650972811831105, "healthcare_spending_pct_gdp": 0.09278820638365386, "education_spending_pct_gdp": 0.0579635166673128, "defense_spending_pct_gdp": 0.019315853668564135, "rd_spending_pct_gdp": 0.019517087856949274, "social_protection_pct_gdp": 0.19197066959318712, "infrastructure_spending_pct_gdp": 0.028301589604942824, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.17872057217176845, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 43784.49144174062, "minimum_wage_monthly_eur": 1861.9072801784805, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.026390686736231874, "housing_price_index": 417.44873510101644, "home_ownership_rate": 0.75}, "demographics": {"population_million": 52.09403275312453, "population_growth_rate": 0.0014847063761768715, "fertility_rate": 0.8, "life_expectancy": 84.48015835306553, "median_age": 46.83940958998568, "pct_under_15": 0.13686798945134068, "pct_15_64": 0.6174398003911337, "pct_over_65": 0.2456922101575256, "dependency_ratio": 0.6195910910934529, "net_migration_per_1000": 4.579944471414967, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.62313455718373, "government_effectiveness": 73.66797915646856, "regulatory_quality": 69.74691094751243, "voice_accountability": 78.0, "political_stability": 54.56826860074381, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.423283096365453, "trust_in_government": 0.3821509032493939, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3054319787936243, "poverty_rate": 0.22095241430098236, "social_mobility_index": 55.0, "voter_turnout": 0.6074968700520589, "crime_rate_per_100k": 22.446079091191866, "housing_affordability": 21.675644530203105, "work_life_balance": 6.0, "education_quality": 70.32584258684672, "healthcare_quality": 80.90045956138731, "environmental_quality": 66.95519347151455, "mental_health_index": 34.73964766055695, "regional_separatism_tension": 47.59068042628495}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 101, "PP": 182, "VOX": 37, "SUMAR": 16, "BILDU": 1, "PNV": 10, "JUNTS": 3}, "vote_shares": {"PSOE": 0.298, "PP": 0.359, "VOX": 0.153, "SUMAR": 0.108, "ERC": 0.005, "JUNTS": 0.028, "PNV": 0.037, "BILDU": 0.012}, "stability": 0.74, "years_since_election": 0, "years_in_power": 0, "elections_held": 7}}, {"year": 2052, "economy": {"gdp_billion_eur": 2188.0356292555216, "gdp_growth_rate": 0.022183090371078122, "gdp_per_capita_eur": 42001.65572945178, "inflation_rate": 0.008336436964457718, "unemployment_rate": 0.1568301827895995, "youth_unemployment_rate": 0.36617847709456824, "public_debt_pct_gdp": 1.9185411511766877, "budget_deficit_pct_gdp": -0.06152298335610584, "tax_revenue_pct_gdp": 0.4959544233007769, "gov_spending_pct_gdp": 0.5574774066568827, "healthcare_spending_pct_gdp": 0.0925148653861301, "education_spending_pct_gdp": 0.05728742960980331, "defense_spending_pct_gdp": 0.019766454302235753, "rd_spending_pct_gdp": 0.019600998886180734, "social_protection_pct_gdp": 0.1881949690507968, "infrastructure_spending_pct_gdp": 0.028753378422358644, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.17975227615609138, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 44513.25930121288, "minimum_wage_monthly_eur": 1892.8976637236901, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.024057974129123416, "housing_price_index": 426.4417438416597, "home_ownership_rate": 0.75}, "demographics": {"population_million": 52.18709361595422, "population_growth_rate": 0.0017864015878883777, "fertility_rate": 0.8, "life_expectancy": 84.49304907653256, "median_age": 46.84208713046099, "pct_under_15": 0.1368850047631078, "pct_15_64": 0.6163327400542149, "pct_over_65": 0.24678225518267724, "dependency_ratio": 0.6225002097276809, "net_migration_per_1000": 4.8816396831264735, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.30606748768471, "government_effectiveness": 73.77721700507311, "regulatory_quality": 69.56309910388323, "voice_accountability": 78.0, "political_stability": 55.973708997396656, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.352592215449997, "trust_in_government": 0.39709241826081243, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.30507905753300507, "poverty_rate": 0.21423281947527575, "social_mobility_index": 55.0, "voter_turnout": 0.6069021121882042, "crime_rate_per_100k": 20.69116709281354, "housing_affordability": 20.08532116892592, "work_life_balance": 6.0, "education_quality": 71.25383384538016, "healthcare_quality": 81.11914220965068, "environmental_quality": 66.8005515533989, "mental_health_index": 35.50894437246316, "regional_separatism_tension": 46.7184517540717}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 101, "PP": 182, "VOX": 37, "SUMAR": 16, "BILDU": 1, "PNV": 10, "JUNTS": 3}, "vote_shares": {"PSOE": 0.298, "PP": 0.359, "VOX": 0.153, "SUMAR": 0.108, "ERC": 0.005, "JUNTS": 0.028, "PNV": 0.037, "BILDU": 0.012}, "stability": 0.74, "years_since_election": 1, "years_in_power": 1, "elections_held": 7}}, {"year": 2053, "economy": {"gdp_billion_eur": 2212.592324462715, "gdp_growth_rate": 0.011223169713899547, "gdp_per_capita_eur": 42397.30882016965, "inflation_rate": 0.011380606559394449, "unemployment_rate": 0.16157714838965165, "youth_unemployment_rate": 0.38038496222481394, "public_debt_pct_gdp": 1.934728691515651, "budget_deficit_pct_gdp": -0.0599197148315061, "tax_revenue_pct_gdp": 0.48961450339259643, "gov_spending_pct_gdp": 0.5495342182241025, "healthcare_spending_pct_gdp": 0.09224123744305485, "education_spending_pct_gdp": 0.056616550665311675, "defense_spending_pct_gdp": 0.020229414434639974, "rd_spending_pct_gdp": 0.019685608393132204, "social_protection_pct_gdp": 0.18448412377736956, "infrastructure_spending_pct_gdp": 0.029214218729641292, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 45015.64237572004, "minimum_wage_monthly_eur": 1914.2611801895137, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.022334095441002306, "housing_price_index": 436.4738181526877, "home_ownership_rate": 0.75}, "demographics": {"population_million": 52.22187814894145, "population_growth_rate": 0.0006665351637172852, "fertility_rate": 0.8, "life_expectancy": 84.49274472236938, "median_age": 46.84644447057256, "pct_under_15": 0.13621812275844009, "pct_15_64": 0.6159984021529645, "pct_over_65": 0.24778347508859536, "dependency_ratio": 0.6233808342763856, "net_migration_per_1000": 3.7617732589553805, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.31020331300999, "government_effectiveness": 74.47566709081042, "regulatory_quality": 69.71298335489804, "voice_accountability": 78.0, "political_stability": 55.984136778587306, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.559737279969167, "trust_in_government": 0.38850749055466677, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.30791877695878944, "poverty_rate": 0.23441188653577255, "social_mobility_index": 55.0, "voter_turnout": 0.6112159117714873, "crime_rate_per_100k": 21.073707913441385, "housing_affordability": 19.288352289651964, "work_life_balance": 6.0, "education_quality": 71.67279945848354, "healthcare_quality": 81.50102289226011, "environmental_quality": 66.66934302821926, "mental_health_index": 33.95693102235228, "regional_separatism_tension": 46.59308152188255}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 101, "PP": 182, "VOX": 37, "SUMAR": 16, "BILDU": 1, "PNV": 10, "JUNTS": 3}, "vote_shares": {"PSOE": 0.298, "PP": 0.359, "VOX": 0.153, "SUMAR": 0.108, "ERC": 0.005, "JUNTS": 0.028, "PNV": 0.037, "BILDU": 0.012}, "stability": 0.75, "years_since_election": 2, "years_in_power": 2, "elections_held": 7}}, {"year": 2054, "economy": {"gdp_billion_eur": 2230.983726347331, "gdp_growth_rate": 0.008312151172756754, "gdp_per_capita_eur": 42721.246447405945, "inflation_rate": 0.012088813638425497, "unemployment_rate": 0.17355402848372115, "youth_unemployment_rate": 0.4065914872992375, "public_debt_pct_gdp": 1.9543960117609303, "budget_deficit_pct_gdp": -0.05953888450832878, "tax_revenue_pct_gdp": 0.4836178885962903, "gov_spending_pct_gdp": 0.5431567731046191, "healthcare_spending_pct_gdp": 0.09197698261608477, "education_spending_pct_gdp": 0.055974340588392485, "defense_spending_pct_gdp": 0.02068834503523059, "rd_spending_pct_gdp": 0.019767915755732224, "social_protection_pct_gdp": 0.1809707260756945, "infrastructure_spending_pct_gdp": 0.029667747390849188, "exports_pct_gdp": 0.38, "imports_pct_gdp": 0.35, "tourism_revenue_pct_gdp": 0.18, "fdi_inflow_billion_eur": 35.0, "labor_force_participation": 0.746, "avg_annual_wage_eur": 45457.82275505712, "minimum_wage_monthly_eur": 1933.0646158428717, "informal_economy_pct": 0.2, "corporate_tax_rate": 0.25, "top_income_tax_rate": 0.47, "vat_rate": 0.21, "interest_rate": 0.020751858168687406, "housing_price_index": 443.9944761836988, "home_ownership_rate": 0.75}, "demographics": {"population_million": 52.29823465336417, "population_growth_rate": 0.0014621554629833224, "fertility_rate": 0.8, "life_expectancy": 84.57808958649, "median_age": 46.849608380235225, "pct_under_15": 0.13559275365860818, "pct_15_64": 0.6145485609240364, "pct_over_65": 0.24985868541735543, "dependency_ratio": 0.6272107097548126, "net_migration_per_1000": 4.557393558221418, "urbanization_rate": 0.81}, "governance": {"rule_of_law": 70.0, "corruption_control": 64.17562800617415, "government_effectiveness": 73.93555372820933, "regulatory_quality": 69.5553527013897, "voice_accountability": 78.0, "political_stability": 55.98091209508887, "judicial_independence": 62.0, "bureaucratic_efficiency": 60.0, "decentralization_level": 75.0}, "social": {"life_satisfaction": 5.305353569171264, "trust_in_government": 0.39387364337252245, "trust_in_judiciary": 0.35, "interpersonal_trust": 0.38, "gini_coefficient": 0.3091201936394669, "poverty_rate": 0.2361606854550054, "social_mobility_index": 55.0, "voter_turnout": 0.5990617974940163, "crime_rate_per_100k": 21.93905899339925, "housing_affordability": 17.240739858001106, "work_life_balance": 6.0, "education_quality": 71.8452623161316, "healthcare_quality": 81.49973886981086, "environmental_quality": 66.32033504618704, "mental_health_index": 33.20157694573119, "regional_separatism_tension": 47.701534492161926}, "government": {"system": "Spanish Parliamentary (D'Hondt PR)", "coalition": ["PP", "VOX"], "seats": {"PSOE": 101, "PP": 182, "VOX": 37, "SUMAR": 16, "BILDU": 1, "PNV": 10, "JUNTS": 3}, "vote_shares": {"PSOE": 0.298, "PP": 0.359, "VOX": 0.153, "SUMAR": 0.108, "ERC": 0.005, "JUNTS": 0.028, "PNV": 0.037, "BILDU": 0.012}, "stability": 0.7, "years_since_election": 3, "years_in_power": 3, "elections_held": 7}}]};
+
+const years = SIM.yearly_data.map(d => d.year);
+const latest = SIM.yearly_data[SIM.yearly_data.length - 1];
+const initial = SIM.yearly_data[0];
+
+// party colors
+const PARTY_COLORS = {
+  'PP': '#1e6bc4', 'PSOE': '#e30613', 'VOX': '#63be21',
+  'SUMAR': '#e5007e', 'ERC': '#ffb232', 'JUNTS': '#00b2a9',
+  'PNV': '#009e49', 'BILDU': '#6b2d7b',
+};
+const ACCENT_CYCLE = [
+  'rgba(59,130,246,1)', 'rgba(34,211,238,1)', 'rgba(245,158,11,1)',
+  'rgba(244,63,94,1)', 'rgba(16,185,129,1)', 'rgba(139,92,246,1)',
+  'rgba(249,115,22,1)', 'rgba(236,72,153,1)',
+];
+
+// ── CATEGORY DEFINITIONS ──
+const CATEGORIES = {
+  overview: {
+    label: 'Overview',
+    kpis: [
+      { key: 'economy.gdp_billion_eur', label: 'GDP', fmt: v => `€${v.toFixed(0)}B`, good: 'up' },
+      { key: 'economy.gdp_growth_rate', label: 'Growth', fmt: v => `${(v*100).toFixed(1)}%`, good: 'up' },
+      { key: 'economy.unemployment_rate', label: 'Unemployment', fmt: v => `${(v*100).toFixed(1)}%`, good: 'down' },
+      { key: 'social.life_satisfaction', label: 'Life Satisfaction', fmt: v => `${v.toFixed(1)}/10`, good: 'up' },
+      { key: 'social.gini_coefficient', label: 'Gini', fmt: v => v.toFixed(3), good: 'down' },
+      { key: 'demographics.population_million', label: 'Population', fmt: v => `${v.toFixed(1)}M`, good: 'up' },
+    ],
+    charts: [
+      { title: 'GDP Growth Rate', sub: 'Annual %', keys: ['economy.gdp_growth_rate'], pct: true },
+      { title: 'Unemployment', sub: 'Total & Youth', keys: ['economy.unemployment_rate', 'economy.youth_unemployment_rate'], pct: true, labels: ['Total', 'Youth'] },
+      { title: 'Life Satisfaction', sub: '0–10 scale', keys: ['social.life_satisfaction'] },
+      { title: 'Public Debt', sub: '% of GDP', keys: ['economy.public_debt_pct_gdp'], pct: true },
+    ]
+  },
+  economy: {
+    label: 'Economy',
+    kpis: [
+      { key: 'economy.gdp_billion_eur', label: 'GDP', fmt: v => `€${v.toFixed(0)}B`, good: 'up' },
+      { key: 'economy.gdp_per_capita_eur', label: 'GDP/Capita', fmt: v => `€${Math.round(v).toLocaleString()}`, good: 'up' },
+      { key: 'economy.inflation_rate', label: 'Inflation', fmt: v => `${(v*100).toFixed(1)}%`, good: 'down' },
+      { key: 'economy.interest_rate', label: 'Interest Rate', fmt: v => `${(v*100).toFixed(1)}%`, good: 'neutral' },
+      { key: 'economy.budget_deficit_pct_gdp', label: 'Budget Balance', fmt: v => `${(v*100).toFixed(1)}%`, good: 'up' },
+      { key: 'economy.avg_annual_wage_eur', label: 'Avg Wage', fmt: v => `€${Math.round(v).toLocaleString()}`, good: 'up' },
+    ],
+    charts: [
+      { title: 'GDP (Nominal)', sub: '€ Billions', keys: ['economy.gdp_billion_eur'] },
+      { title: 'GDP per Capita', sub: '€', keys: ['economy.gdp_per_capita_eur'] },
+      { title: 'GDP Growth Rate', sub: '%', keys: ['economy.gdp_growth_rate'], pct: true },
+      { title: 'Inflation Rate', sub: '%', keys: ['economy.inflation_rate'], pct: true },
+      { title: 'Unemployment Rate', sub: 'Total & Youth', keys: ['economy.unemployment_rate', 'economy.youth_unemployment_rate'], pct: true, labels: ['Total', 'Youth'] },
+      { title: 'Public Debt', sub: '% of GDP', keys: ['economy.public_debt_pct_gdp'], pct: true },
+      { title: 'Budget Balance', sub: '% of GDP', keys: ['economy.budget_deficit_pct_gdp'], pct: true },
+      { title: 'Tax Revenue vs Spending', sub: '% of GDP', keys: ['economy.tax_revenue_pct_gdp', 'economy.gov_spending_pct_gdp'], pct: true, labels: ['Tax Revenue', 'Gov Spending'] },
+      { title: 'Interest Rate', sub: 'ECB-linked', keys: ['economy.interest_rate'], pct: true },
+      { title: 'Average Annual Wage', sub: '€ gross', keys: ['economy.avg_annual_wage_eur'] },
+      { title: 'Housing Price Index', sub: 'Base 2024 = 100', keys: ['economy.housing_price_index'] },
+      { title: 'Tourism Revenue', sub: '% of GDP', keys: ['economy.tourism_revenue_pct_gdp'], pct: true },
+    ]
+  },
+  spending: {
+    label: 'Gov. Spending',
+    kpis: [
+      { key: 'economy.gov_spending_pct_gdp', label: 'Total Spending', fmt: v => `${(v*100).toFixed(1)}%`, good: 'neutral' },
+      { key: 'economy.healthcare_spending_pct_gdp', label: 'Healthcare', fmt: v => `${(v*100).toFixed(1)}%`, good: 'up' },
+      { key: 'economy.education_spending_pct_gdp', label: 'Education', fmt: v => `${(v*100).toFixed(1)}%`, good: 'up' },
+      { key: 'economy.rd_spending_pct_gdp', label: 'R&D', fmt: v => `${(v*100).toFixed(1)}%`, good: 'up' },
+    ],
+    charts: [
+      { title: 'Total Government Spending', sub: '% of GDP', keys: ['economy.gov_spending_pct_gdp'], pct: true },
+      { title: 'Healthcare Spending', sub: '% of GDP', keys: ['economy.healthcare_spending_pct_gdp'], pct: true },
+      { title: 'Education Spending', sub: '% of GDP', keys: ['economy.education_spending_pct_gdp'], pct: true },
+      { title: 'Social Protection', sub: '% of GDP (pensions + welfare)', keys: ['economy.social_protection_pct_gdp'], pct: true },
+      { title: 'Defense Spending', sub: '% of GDP', keys: ['economy.defense_spending_pct_gdp'], pct: true },
+      { title: 'R&D Spending', sub: '% of GDP', keys: ['economy.rd_spending_pct_gdp'], pct: true },
+      { title: 'Infrastructure Spending', sub: '% of GDP', keys: ['economy.infrastructure_spending_pct_gdp'], pct: true },
+      { title: 'Spending Breakdown', sub: '% of GDP stacked', keys: [
+          'economy.healthcare_spending_pct_gdp', 'economy.education_spending_pct_gdp',
+          'economy.social_protection_pct_gdp', 'economy.defense_spending_pct_gdp',
+          'economy.rd_spending_pct_gdp', 'economy.infrastructure_spending_pct_gdp'
+        ], pct: true, stacked: true,
+        labels: ['Healthcare', 'Education', 'Social Protection', 'Defense', 'R&D', 'Infrastructure']
+      },
+    ]
+  },
+  demographics: {
+    label: 'Demographics',
+    kpis: [
+      { key: 'demographics.population_million', label: 'Population', fmt: v => `${v.toFixed(1)}M`, good: 'up' },
+      { key: 'demographics.fertility_rate', label: 'Fertility', fmt: v => v.toFixed(2), good: 'up' },
+      { key: 'demographics.life_expectancy', label: 'Life Expectancy', fmt: v => `${v.toFixed(1)}y`, good: 'up' },
+      { key: 'demographics.median_age', label: 'Median Age', fmt: v => v.toFixed(1), good: 'neutral' },
+      { key: 'demographics.pct_over_65', label: '% Over 65', fmt: v => `${(v*100).toFixed(1)}%`, good: 'down' },
+      { key: 'demographics.dependency_ratio', label: 'Dependency Ratio', fmt: v => v.toFixed(2), good: 'down' },
+    ],
+    charts: [
+      { title: 'Population', sub: 'Millions', keys: ['demographics.population_million'] },
+      { title: 'Fertility Rate', sub: 'Children per woman (replacement = 2.1)', keys: ['demographics.fertility_rate'], refLine: 2.1 },
+      { title: 'Life Expectancy', sub: 'Years at birth', keys: ['demographics.life_expectancy'] },
+      { title: 'Age Structure', sub: '% of population', keys: ['demographics.pct_under_15', 'demographics.pct_15_64', 'demographics.pct_over_65'], pct: true, stacked: true, labels: ['Under 15', 'Working Age (15-64)', 'Over 65'] },
+      { title: 'Dependency Ratio', sub: '(Under 15 + Over 65) / Working Age', keys: ['demographics.dependency_ratio'] },
+      { title: 'Net Migration', sub: 'Per 1,000 population', keys: ['demographics.net_migration_per_1000'] },
+      { title: 'Median Age', sub: 'Years', keys: ['demographics.median_age'] },
+    ]
+  },
+  wellbeing: {
+    label: 'Wellbeing',
+    kpis: [
+      { key: 'social.life_satisfaction', label: 'Life Satisfaction', fmt: v => `${v.toFixed(1)}/10`, good: 'up' },
+      { key: 'social.mental_health_index', label: 'Mental Health', fmt: v => `${v.toFixed(0)}/100`, good: 'up' },
+      { key: 'social.gini_coefficient', label: 'Inequality (Gini)', fmt: v => v.toFixed(3), good: 'down' },
+      { key: 'social.poverty_rate', label: 'Poverty Rate', fmt: v => `${(v*100).toFixed(1)}%`, good: 'down' },
+      { key: 'social.housing_affordability', label: 'Housing Score', fmt: v => `${v.toFixed(0)}/100`, good: 'up' },
+      { key: 'social.work_life_balance', label: 'Work-Life Bal.', fmt: v => `${v.toFixed(1)}/10`, good: 'up' },
+    ],
+    charts: [
+      { title: 'Life Satisfaction', sub: '0–10 scale', keys: ['social.life_satisfaction'] },
+      { title: 'Mental Health Index', sub: '0–100', keys: ['social.mental_health_index'] },
+      { title: 'Gini Coefficient', sub: 'Income inequality (0 = perfect equality)', keys: ['social.gini_coefficient'] },
+      { title: 'Poverty Rate', sub: '% at risk of poverty', keys: ['social.poverty_rate'], pct: true },
+      { title: 'Housing Affordability', sub: '0–100 (higher = more affordable)', keys: ['social.housing_affordability'] },
+      { title: 'Education & Healthcare Quality', sub: '0–100', keys: ['social.education_quality', 'social.healthcare_quality'], labels: ['Education', 'Healthcare'] },
+      { title: 'Environmental Quality', sub: '0–100', keys: ['social.environmental_quality'] },
+      { title: 'Crime Rate', sub: 'Per 100k population', keys: ['social.crime_rate_per_100k'] },
+    ]
+  },
+  governance: {
+    label: 'Governance',
+    kpis: [
+      { key: 'social.trust_in_government', label: 'Trust in Gov', fmt: v => `${(v*100).toFixed(0)}%`, good: 'up' },
+      { key: 'governance.government_effectiveness', label: 'Effectiveness', fmt: v => `${v.toFixed(0)}/100`, good: 'up' },
+      { key: 'governance.corruption_control', label: 'Corruption Ctrl', fmt: v => `${v.toFixed(0)}/100`, good: 'up' },
+      { key: 'governance.political_stability', label: 'Stability', fmt: v => `${v.toFixed(0)}/100`, good: 'up' },
+      { key: 'social.voter_turnout', label: 'Voter Turnout', fmt: v => `${(v*100).toFixed(0)}%`, good: 'up' },
+      { key: 'social.regional_separatism_tension', label: 'Regional Tension', fmt: v => `${v.toFixed(0)}/100`, good: 'down' },
+    ],
+    charts: [
+      { title: 'Trust in Government', sub: '% of population', keys: ['social.trust_in_government'], pct: true },
+      { title: 'Governance Indices', sub: '0–100', keys: ['governance.rule_of_law', 'governance.corruption_control', 'governance.government_effectiveness', 'governance.regulatory_quality'], labels: ['Rule of Law', 'Corruption Control', 'Effectiveness', 'Regulatory Quality'] },
+      { title: 'Political Stability', sub: '0–100', keys: ['governance.political_stability'] },
+      { title: 'Voter Turnout', sub: '%', keys: ['social.voter_turnout'], pct: true },
+      { title: 'Regional Separatism Tension', sub: '0–100', keys: ['social.regional_separatism_tension'] },
+      { title: 'Judicial Independence', sub: '0–100', keys: ['governance.judicial_independence'] },
+    ]
+  },
+  politics: {
+    label: 'Elections',
+    kpis: [],
+    charts: [],
+    custom: true, // handled specially
+  },
+};
+
+// ── HELPERS ──
+function getVal(record, dotKey) {
+  const parts = dotKey.split('.');
+  let v = record;
+  for (const p of parts) v = v[p];
+  return v;
+}
+function getSeries(dotKey) {
+  return SIM.yearly_data.map(d => getVal(d, dotKey));
+}
+function pctChange(a, b) {
+  if (a === 0) return 0;
+  return ((b - a) / Math.abs(a)) * 100;
+}
+
+// ── CHART CREATION ──
+Chart.defaults.color = '#8891a5';
+Chart.defaults.borderColor = 'rgba(37,42,54,0.6)';
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+Chart.defaults.font.size = 11;
+
+const chartInstances = [];
+
+function destroyCharts() {
+  chartInstances.forEach(c => c.destroy());
+  chartInstances.length = 0;
+}
+
+function makeChart(canvas, config) {
+  const { title, keys, pct, labels, stacked, refLine } = config;
+  const datasets = keys.map((k, i) => {
+    const data = getSeries(k).map(v => pct ? v * 100 : v);
+    const color = ACCENT_CYCLE[i % ACCENT_CYCLE.length];
+    const bgColor = color.replace(',1)', ',0.15)');
+    return {
+      label: labels ? labels[i] : k.split('.').pop().replace(/_/g, ' '),
+      data,
+      borderColor: color,
+      backgroundColor: stacked ? color.replace(',1)', ',0.7)') : bgColor,
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      tension: 0.3,
+      fill: stacked ? true : (keys.length === 1),
+    };
+  });
+
+  // Election year markers
+  const electionYears = SIM.election_history.map(e => e.year);
+  const annotations = {};
+  electionYears.forEach((ey, i) => {
+    const idx = years.indexOf(ey);
+    if (idx >= 0) {
+      annotations['elec' + i] = {
+        type: 'line', xMin: idx, xMax: idx,
+        borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderDash: [4, 4],
+      };
+    }
+  });
+  if (refLine !== undefined) {
+    annotations['ref'] = {
+      type: 'line', yMin: refLine, yMax: refLine,
+      borderColor: 'rgba(244,63,94,0.4)', borderWidth: 1.5, borderDash: [6, 4],
+      label: { display: true, content: `${refLine}`, position: 'start', font: { size: 10 }, color: 'rgba(244,63,94,0.7)' }
+    };
+  }
+
+  const chart = new Chart(canvas, {
+    type: 'line',
+    data: { labels: years, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: keys.length > 1, position: 'top', labels: { boxWidth: 12, padding: 10 } },
+        tooltip: {
+          backgroundColor: 'rgba(18,21,28,0.95)', titleColor: '#e8eaf0',
+          bodyColor: '#8891a5', borderColor: '#252a36', borderWidth: 1,
+          padding: 10, cornerRadius: 8,
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}${pct ? '%' : ''}` }
+        },
+        annotation: { annotations },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } },
+        y: {
+          stacked: !!stacked,
+          grid: { color: 'rgba(37,42,54,0.5)' },
+          ticks: { callback: v => pct ? v.toFixed(0) + '%' : v.toLocaleString() }
+        },
+      },
+    },
+    plugins: [{ /* annotation plugin loaded below */ }],
+  });
+  chartInstances.push(chart);
+}
+
+// ── RENDER ──
+let activeCategory = 'overview';
+
+function render() {
+  destroyCharts();
+  const cat = CATEGORIES[activeCategory];
+
+  // Nav
+  document.getElementById('navBar').innerHTML = Object.entries(CATEGORIES).map(([k, v]) =>
+    `<button class="nav-btn ${k === activeCategory ? 'active' : ''}" onclick="setCategory('${k}')">${v.label}</button>`
+  ).join('');
+
+  // KPIs
+  const kpiHtml = cat.kpis.map(kpi => {
+    const cur = getVal(latest, kpi.key);
+    const prev = getVal(initial, kpi.key);
+    const change = pctChange(prev, cur);
+    const isGood = (kpi.good === 'up' && change > 0) || (kpi.good === 'down' && change < 0) || kpi.good === 'neutral';
+    return `<div class="kpi">
+      <div class="kpi-label">${kpi.label}</div>
+      <div class="kpi-value">${kpi.fmt(cur)}</div>
+      <div class="kpi-change ${isGood ? 'positive' : 'negative'}">${change >= 0 ? '+' : ''}${change.toFixed(1)}% since 2024</div>
+    </div>`;
+  }).join('');
+  document.getElementById('kpiStrip').innerHTML = kpiHtml;
+
+  // Charts
+  if (activeCategory === 'politics') {
+    document.getElementById('chartsContainer').innerHTML = '';
+    renderPoliticsSection();
+    return;
+  }
+
+  document.getElementById('extraSections').innerHTML = '';
+  const chartsHtml = cat.charts.map((c, i) =>
+    `<div class="chart-card">
+      <div class="chart-title">${c.title}</div>
+      <div class="chart-subtitle">${c.sub || ''}</div>
+      <div class="chart-wrap"><canvas id="chart_${i}"></canvas></div>
+    </div>`
+  ).join('');
+  document.getElementById('chartsContainer').innerHTML = chartsHtml;
+
+  // Init charts
+  requestAnimationFrame(() => {
+    cat.charts.forEach((c, i) => {
+      const canvas = document.getElementById(`chart_${i}`);
+      if (canvas) makeChart(canvas, c);
+    });
+  });
+}
+
+function renderPoliticsSection() {
+  const extra = document.getElementById('extraSections');
+
+  // Government timeline bar
+  const totalYears = years.length;
+  const coalitionColors = { 'PSOE': '#e30613', 'PP': '#1e6bc4' };
+  let segments = [];
+  let currentCoalition = null;
+  let startIdx = 0;
+
+  SIM.yearly_data.forEach((d, i) => {
+    const lead = d.government.coalition[0];
+    if (lead !== currentCoalition) {
+      if (currentCoalition !== null) {
+        segments.push({ party: currentCoalition, start: startIdx, end: i, coalition: SIM.yearly_data[startIdx].government.coalition });
+      }
+      currentCoalition = lead;
+      startIdx = i;
+    }
+  });
+  segments.push({ party: currentCoalition, start: startIdx, end: totalYears, coalition: SIM.yearly_data[startIdx].government.coalition });
+
+  const barHtml = segments.map(s => {
+    const width = ((s.end - s.start) / totalYears * 100);
+    const color = coalitionColors[s.party] || '#666';
+    const label = s.coalition.join('+');
+    const yrs = `${years[s.start]}–${years[Math.min(s.end, totalYears - 1)]}`;
+    return `<div class="gov-bar-segment" style="width:${width}%;background:${color}" title="${label} (${yrs})">${width > 8 ? yrs : ''}</div>`;
+  }).join('');
+
+  // Election cards
+  const electionCards = SIM.election_history.map(el => {
+    const maxSeats = Math.max(...Object.values(el.seats));
+    const sortedParties = Object.entries(el.seats).sort((a, b) => b[1] - a[1]);
+    const bars = sortedParties.filter(([_, s]) => s > 0).map(([party, seats]) => {
+      const pct = (seats / 350 * 100);
+      const color = PARTY_COLORS[party] || '#555';
+      return `<div class="election-bar-row">
+        <div class="election-party-name">${party}</div>
+        <div class="election-bar-track">
+          <div class="election-bar-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <div class="election-seats">${seats}</div>
+      </div>`;
+    }).join('');
+    return `<div class="election-card">
+      <div class="election-year">${el.year}</div>
+      <div class="election-coalition">${el.coalition.join(' + ')}</div>
+      ${bars}
+    </div>`;
+  }).join('');
+
+  // Coalition stability chart
+  const stabilityChartId = 'stabilityChart';
+  const voteShareChartId = 'voteShareChart';
+
+  extra.innerHTML = `
+    <div class="gov-timeline">
+      <h2>Government Timeline</h2>
+      <div class="gov-bar-container">${barHtml}</div>
+      <div class="gov-legend">
+        <div class="gov-legend-item"><div class="gov-legend-dot" style="background:#e30613"></div>PSOE-led</div>
+        <div class="gov-legend-item"><div class="gov-legend-dot" style="background:#1e6bc4"></div>PP-led</div>
+      </div>
+    </div>
+    <div class="election-section">
+      <h2>Election Results</h2>
+      <div class="election-timeline">${electionCards}</div>
+    </div>
+    <div class="charts-container">
+      <div class="chart-card">
+        <div class="chart-title">Coalition Stability</div>
+        <div class="chart-subtitle">0–100% (higher = more stable government)</div>
+        <div class="chart-wrap"><canvas id="${stabilityChartId}"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Party Vote Shares Over Time</div>
+        <div class="chart-subtitle">% at each election</div>
+        <div class="chart-wrap"><canvas id="${voteShareChartId}"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    // Stability chart
+    const stabData = SIM.yearly_data.map(d => (d.government.stability || 0) * 100);
+    const stabCanvas = document.getElementById(stabilityChartId);
+    if (stabCanvas) {
+      const c = new Chart(stabCanvas, {
+        type: 'line',
+        data: { labels: years, datasets: [{ label: 'Stability %', data: stabData, borderColor: ACCENT_CYCLE[0], backgroundColor: ACCENT_CYCLE[0].replace(',1)', ',0.1)'), borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { min: 0, max: 100 } } },
+      });
+      chartInstances.push(c);
+    }
+
+    // Vote shares over elections
+    const elYears = SIM.election_history.map(e => e.year);
+    const allParties = [...new Set(SIM.election_history.flatMap(e => Object.keys(e.vote_shares)))];
+    const mainParties = ['PP', 'PSOE', 'VOX', 'SUMAR', 'ERC', 'JUNTS', 'PNV', 'BILDU'];
+    const vsDatasets = mainParties.filter(p => allParties.includes(p)).map(party => ({
+      label: party,
+      data: SIM.election_history.map(e => (e.vote_shares[party] || 0) * 100),
+      borderColor: PARTY_COLORS[party] || '#666',
+      backgroundColor: 'transparent',
+      borderWidth: 2.5, pointRadius: 4, tension: 0.3,
+    }));
+    const vsCanvas = document.getElementById(voteShareChartId);
+    if (vsCanvas) {
+      const c = new Chart(vsCanvas, {
+        type: 'line',
+        data: { labels: elYears, datasets: vsDatasets },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } } }, scales: { x: { grid: { display: false } }, y: { min: 0, ticks: { callback: v => v + '%' } } } },
+      });
+      chartInstances.push(c);
+    }
+  });
+}
+
+function setCategory(cat) {
+  activeCategory = cat;
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── INIT ──
+render();
+</script>
+</body>
+</html>
