@@ -299,12 +299,41 @@ def apply_economic_model(state, action, rng, w):
         w[i+"base_rate"] + spending_pressure + demand_pull + monetary + rng.gauss(0, w[i+"shock_std"])))
 
     u = "economy.unemployment."
+    su = "economy.structural_unemployment."
+    # --- UNEMPLOYMENT: Structural floor + cyclical dynamics ---
+    # Spain has a high structural unemployment that slowly declines with reform
+    struct_floor_initial = w.get(su+"initial_floor", 0.18)
+    floor_decay = w.get(su+"floor_decay_per_year", 0.004)
+    floor_min = w.get(su+"floor_min", 0.06)
+    # Labor deregulation actively reduces the structural floor
+    reform_push = max(0, action.business_deregulation_mult - 1.0) * w.get(su+"labor_reform_effect", 0.3)
+    # Years since start: use year to approximate structural improvement
+    # The floor decays over time as institutions modernize
+    years_elapsed = max(0, state.year - 1994)
+    structural_floor = max(floor_min,
+        struct_floor_initial - floor_decay * years_elapsed - reform_push * 0.01)
+
+    # Cyclical component: Okun's law around the structural floor
     okun_effect = (eco.gdp_growth_rate - w[u+"okun_trend"]) * w[u+"okun_coeff"]
     reg_effect = (action.labor_regulation_mult - 1.0) * w[u+"labor_reg_effect"]
     dereg_effect = (action.business_deregulation_mult - 1.0) * w[u+"business_dereg_effect"]
     imm_effect = (action.immigration_openness_mult - 1.0) * w[u+"immigration_effect"]
-    eco.unemployment_rate = max(w[u+"min"], min(w[u+"max"],
-        eco.unemployment_rate + okun_effect + reg_effect + dereg_effect + imm_effect + rng.gauss(0, w[u+"shock_std"])))
+
+    # Boom absorption: strong growth can push unemployment below structural floor temporarily
+    boom_absorption = w.get(su+"boom_absorption_rate", 0.5)
+    cyclical_change = okun_effect + reg_effect + dereg_effect + imm_effect + rng.gauss(0, w[u+"shock_std"])
+    new_unemployment = eco.unemployment_rate + cyclical_change
+
+    # Hysteresis: if unemployment was high, it tends to stay high (sticky)
+    hysteresis = w.get(su+"hysteresis_coeff", 0.1)
+    # Pull toward structural floor if below it (market forces), but allow booms to push below
+    if new_unemployment < structural_floor:
+        new_unemployment += (structural_floor - new_unemployment) * (1 - boom_absorption) * 0.1
+    else:
+        # Above floor: hysteresis makes it sticky, slow to come down
+        new_unemployment += (structural_floor - new_unemployment) * hysteresis
+
+    eco.unemployment_rate = max(w[u+"min"], min(w[u+"max"], new_unemployment))
     eco.youth_unemployment_rate = min(w[u+"youth_max"], max(w[u+"youth_min"],
         eco.unemployment_rate * w[u+"youth_multiplier"] + rng.gauss(0, w[u+"youth_shock_std"])))
 
@@ -358,16 +387,32 @@ def apply_economic_model(state, action, rng, w):
     eco.tourism_revenue_pct_gdp = max(w[t+"min"], min(w[t+"max"], eco.tourism_revenue_pct_gdp))
 
     ir = "economy.interest_rate."
-    eco.interest_rate += (eco.inflation_rate - w[ir+"inflation_target"]) * w[ir+"inflation_response"]
+    # --- INTEREST RATE: Period-aware regime model ---
+    # The ECB (or Bank of Spain pre-1999) targets different rates in different eras.
+    # The rate converges toward the regime target, with inflation deviations on top.
+    regimes = w.get("economy.interest_rate.regimes", [])
+    regime_target = w.get(ir+"inflation_target", 0.02)  # fallback
+    for regime in regimes:
+        if regime["start_year"] <= state.year <= regime["end_year"]:
+            regime_target = regime["target_rate"]
+            break
+    convergence = w.get(ir+"regime_convergence_speed", 0.3)
+    # Converge toward regime target
+    eco.interest_rate += (regime_target - eco.interest_rate) * convergence
+    # Small inflation deviation response on top
+    eco.interest_rate += (eco.inflation_rate - w[ir+"inflation_target"]) * w[ir+"inflation_response"] * 0.3
     eco.interest_rate = max(w[ir+"min"], min(w[ir+"max"], eco.interest_rate))
 
 
 def apply_demographic_model(state, action, rng, w):
     demo, eco = state.demographics, state.economy
     f = "demographics.fertility."
+    # Immigration-driven fertility boost: immigrants tend to have higher fertility
+    imm_fertility = max(0, demo.net_migration_per_1000) * w.get(f+"immigration_fertility_boost", 0.008)
     demo.fertility_rate += ((state.social.housing_affordability - w[f+"affordability_baseline"]) * w[f+"affordability_coeff"] +
                             (eco.social_protection_pct_gdp - w[f+"social_protection_baseline"]) * w[f+"social_protection_coeff"] +
                             (eco.unemployment_rate - w[f+"unemployment_baseline"]) * w[f+"unemployment_coeff"] +
+                            imm_fertility +
                             rng.gauss(0, w[f+"shock_std"]))
     demo.fertility_rate = max(w[f+"min"], min(w[f+"max"], demo.fertility_rate))
 
