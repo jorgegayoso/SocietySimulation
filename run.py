@@ -2,11 +2,11 @@
 Spain Government Simulation — Runner
 =====================================
 Usage:
-    python run_simulation.py                           # defaults: input/spain_2024.json, 30y, seed 42
-    python run_simulation.py --input input/spain_1994.json --years 30 --seed 123
-    python run_simulation.py -i input/spain_1994.json -y 50 -s 7
+    python run.py                                     # defaults: input/spain_2024.json, 30y
+    python run.py --input input/spain_1994.json --years 30
+    python run.py -i input/spain_1994.json -y 50
 
-Output goes to:  output/<input_name>_<years>y_seed<seed>.json
+Output goes to:  output/<input_name>_<years>y.json
 """
 
 import argparse
@@ -27,7 +27,7 @@ def format_table_row(label, *values):
     return " | ".join(cols)
 
 
-def run_simulation(input_path: str, years: int, seed: int, weights_path: str = None):
+def run_simulation(input_path: str, years: int, weights_path: str = None):
     # --- Load initial state ---
     if os.path.isfile(input_path):
         initial_state = load_state_from_json(input_path)
@@ -39,6 +39,7 @@ def run_simulation(input_path: str, years: int, seed: int, weights_path: str = N
     # --- Load weights ---
     weights = Weights(weights_path) if weights_path else Weights()
 
+    seed = 0
     start_year = initial_state.year
     end_year = start_year + years
 
@@ -47,7 +48,6 @@ def run_simulation(input_path: str, years: int, seed: int, weights_path: str = N
     print("  System: Spanish Parliamentary Democracy (D'Hondt Proportional Representation)")
     print(f"  Input:  {input_path}")
     print(f"  Period: {start_year} -> {end_year}  ({years} years)")
-    print(f"  Seed:   {seed}")
     print("=" * 90)
     print()
 
@@ -151,7 +151,7 @@ def run_simulation(input_path: str, years: int, seed: int, weights_path: str = N
     # --- Save output ---
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
     os.makedirs(output_dir, exist_ok=True)
-    output_filename = f"{input_name}_{years}y_seed{seed}.json"
+    output_filename = f"{input_name}_{years}y.json"
     output_path = os.path.join(output_dir, output_filename)
 
     output_data = {
@@ -159,7 +159,6 @@ def run_simulation(input_path: str, years: int, seed: int, weights_path: str = N
             "system": "Spanish Parliamentary (D'Hondt PR)",
             "input_file": input_path,
             "years_simulated": years,
-            "seed": seed,
             "start_year": start_year,
             "end_year": end_year,
         },
@@ -179,17 +178,15 @@ if __name__ == "__main__":
         description="Spain Government System Simulation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
-  python run_simulation.py
-  python run_simulation.py --input input/spain_1994.json --years 30 --seed 123
-  python run_simulation.py -i input/spain_2024.json -y 50 -s 7""")
+  python run.py
+  python run.py --input input/spain_1994.json --years 30
+  python run.py -i input/spain_2024.json -y 50""")
     parser.add_argument("-i", "--input", default="input/spain_2024.json",
                         help="Path to initial state JSON (default: input/spain_2024.json)")
     parser.add_argument("-y", "--years", type=int, default=30,
                         help="Number of years to simulate (default: 30)")
-    parser.add_argument("-s", "--seed", type=int, default=42,
-                        help="Random seed (default: 42)")
     parser.add_argument("-w", "--weights", default=None,
                         help="Path to weights JSON (default: weights/default.json)")
     args = parser.parse_args()
-    run_simulation(input_path=args.input, years=args.years, seed=args.seed,
+    run_simulation(input_path=args.input, years=args.years,
                    weights_path=args.weights)

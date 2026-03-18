@@ -5,8 +5,10 @@ Compares a simulation output against a real-world input file to measure
 how close the simulation got to reality.
 
 Usage:
-    python compare.py output/spain_1994_30y_seed42.json input/spain_2024.json
+    python compare.py output/spain_1994_30y.json input/spain_2024.json
     python compare.py <simulated_output> <real_world_input>
+
+Output: comparisons/compare_<year_file>_<sim_years>_vs_<compare_file>.html
 
 The tool:
 1. Reads the simulation output (yearly time-series)
@@ -484,13 +486,13 @@ def main():
         description="Compare simulation output against real-world data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
-  python compare.py output/spain_1994_30y_seed42.json input/spain_2024.json
-  python compare.py output/spain_2024_30y_seed42.json input/spain_2024.json  (self-check at year 0)
+  python compare.py output/spain_1994_30y.json input/spain_2024.json
+  python compare.py output/spain_2024_30y.json input/spain_2024.json  (self-check at year 0)
 """)
     parser.add_argument("simulation", help="Path to simulation output JSON")
     parser.add_argument("reality", help="Path to real-world input JSON (the ground truth)")
     parser.add_argument("-o", "--output", default=None,
-                        help="Output HTML path (default: auto-generated in output/)")
+                        help="Output HTML path (default: auto-generated in comparisons/)")
     args = parser.parse_args()
 
     print(f"\n  Simulation: {args.simulation}")
@@ -523,9 +525,19 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         out_dir = os.path.join(script_dir, "comparisons")
         os.makedirs(out_dir, exist_ok=True)
-        sim_name = os.path.splitext(os.path.basename(args.simulation))[0]
-        real_name = os.path.splitext(os.path.basename(args.reality))[0]
-        out_path = os.path.join(out_dir, f"compare_{sim_name}_vs_{real_name}.html")
+        # Format: compare_<year_file>_<sim_years>_vs_<compare_file>.html
+        sim_basename = os.path.splitext(os.path.basename(args.simulation))[0]
+        real_basename = os.path.splitext(os.path.basename(args.reality))[0]
+        # Extract source year file and sim years from filename
+        # e.g. "spain_1994_30y" -> year_file="spain_1994", sim_years="30y"
+        parts = sim_basename.rsplit("_", 1)
+        if len(parts) == 2 and parts[1].endswith("y"):
+            year_file = parts[0]
+            sim_years = parts[1]
+        else:
+            year_file = sim_basename
+            sim_years = f"{comparison['years_simulated']}y"
+        out_path = os.path.join(out_dir, f"compare_{year_file}_{sim_years}_vs_{real_basename}.html")
 
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(html)

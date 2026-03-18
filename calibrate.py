@@ -36,7 +36,7 @@ Usage:
     python calibrate.py --reset                     # fresh start
 
 On your server:
-    nohup python -u calibrate.py --epochs 0 > calibrate.log 2>&1 &
+    nohup python calibrate.py --epochs 0 > calibrate.log 2>&1 &
     tail -f calibrate.log
     kill $(cat calibrate.pid)                       # graceful stop
 """
@@ -356,64 +356,64 @@ def clamp_vector(vec: np.ndarray, ref: np.ndarray) -> np.ndarray:
 # SIMULATION EVALUATION
 # ---------------------------------------------------------------------------
 
-def evaluate_weights_batch(start_path, checkpoints, weights, seeds):
+def evaluate_weights_batch(start_path, checkpoints, weights):
     """
-    Run simulations and return:
+    Run simulation with seed 0 against all checkpoints and return:
     - wmape: scalar loss
-    - signed_errors: np.array of shape (n_calib_vars,)
+    - signed_errors: np.array of shape (n_calib_vars,) — signed relative error per var
     """
     all_signed = [[] for _ in CALIB_VAR_LIST]
     all_weighted_rel = []
     total_w = CALIB_WEIGHTS.sum()
 
-    for seed in seeds:
-        for cp in checkpoints:
-            initial = load_state_from_json(start_path)
-            years = cp["year"] - initial.year
-            if years <= 0:
-                continue
-            system = SpanishParliamentarySystem()
-            engine = SimulationEngine(system, seed=seed, initial_state=initial, weights=weights)
-            engine.run(years)
+    for cp in checkpoints:
+        initial = load_state_from_json(start_path)
+        years = cp["year"] - initial.year
+        if years <= 0:
+            continue
+        system = SpanishParliamentarySystem()
+        engine = SimulationEngine(system, seed=0, initial_state=initial, weights=weights)
+        engine.run(years)
 
-            sim_rec = None
-            for r in engine.history:
-                if r["year"] == cp["year"]:
-                    sim_rec = r
-                    break
-            if sim_rec is None:
-                continue
+        sim_rec = None
+        for r in engine.history:
+            if r["year"] == cp["year"]:
+                sim_rec = r
+                break
+        if sim_rec is None:
+            continue
 
-            for i, var in enumerate(CALIB_VAR_LIST):
-                sv = _getval(sim_rec, var)
-                av = _getval(cp["data"], var)
-                if sv is None or av is None:
-                    continue
-                if av != 0:
-                    signed = (sv - av) / abs(av)
-                else:
-                    signed = sv if sv != 0 else 0.0
-                all_signed[i].append(signed)
-                all_weighted_rel.append(abs(signed) * CALIB_WEIGHTS[i])
+        for i, var in enumerate(CALIB_VAR_LIST):
+            sv = _getval(sim_rec, var)
+            av = _getval(cp["data"], var)
+            if sv is None or av is None:
+                continue
+            if av != 0:
+                signed = (sv - av) / abs(av)
+            else:
+                signed = sv if sv != 0 else 0.0
+            all_signed[i].append(signed)
+            all_weighted_rel.append(abs(signed) * CALIB_WEIGHTS[i])
 
     mean_signed = np.zeros(len(CALIB_VAR_LIST))
     for i in range(len(CALIB_VAR_LIST)):
         if all_signed[i]:
             mean_signed[i] = np.mean(all_signed[i])
 
-    n_evals = len(seeds) * len(checkpoints)
-    wmape = sum(all_weighted_rel) / (n_evals * total_w) if all_weighted_rel else 999.0
+    n_cp = len(checkpoints)
+    wmape = sum(all_weighted_rel) / (n_cp * total_w) if all_weighted_rel else 999.0
     return wmape, mean_signed
 
 
-def evaluate_vector(vec, ref_vec, tunable_keys, start_path, checkpoints, seeds, base_weights_data):
+def evaluate_vector(vec, ref_vec, tunable_keys, start_path, checkpoints,
+                    base_weights_data):
     """Evaluate a candidate weight vector. Returns wmape."""
     vec_clamped = clamp_vector(vec, ref_vec)
     weights = Weights.__new__(Weights)
     weights._data = copy.deepcopy(base_weights_data)
     weights.path = ""
     vector_to_weights(vec_clamped, tunable_keys, weights)
-    wmape, _ = evaluate_weights_batch(start_path, checkpoints, weights, seeds)
+    wmape, _ = evaluate_weights_batch(start_path, checkpoints, weights)
     return wmape
 
 
@@ -444,12 +444,48 @@ def coord_descent_step(weights, signed_errors, lr_cd=0.12):
     return adjustments
 
 
+def individual_weight_probe(weights, tunable_keys, start_path, checkpoints,
+                            best_wmape, probe_scale=0.05, max_probes=20):
+    """
+    Try nudging individual weights one at a time (not just the ones in
+    VAR_TO_WEIGHTS). This catches improvements in the ~40 weights that
+    coord descent never touches because they have no known causal mapping.
+
+    Picks random weights to probe each call to avoid always trying the same ones.
+    """
+    indices = list(range(len(tunable_keys)))
+    np.random.shuffle(indices)
+    improved = False
+
+    for idx in indices[:max_probes]:
+        key = tunable_keys[idx]
+        cur = weights.get(key)
+        if cur is None:
+            continue
+
+        for direction in [+1, -1]:
+            if abs(cur) > 1e-6:
+                new_val = cur * (1 + direction * probe_scale)
+            else:
+                new_val = cur + direction * probe_scale * 0.01
+            weights.set(key, new_val)
+            wmape, _ = evaluate_weights_batch(start_path, checkpoints, weights)
+            if wmape < best_wmape:
+                best_wmape = wmape
+                improved = True
+                break  # keep this change, move to next weight
+            else:
+                weights.set(key, cur)  # revert
+
+    return best_wmape, improved
+
+
 # ---------------------------------------------------------------------------
 # STOCHASTIC PERTURBATION
 # ---------------------------------------------------------------------------
 
 def perturbation_step(current_vec, ref_vec, tunable_keys, start_path, checkpoints,
-                      seeds, base_weights_data, current_wmape,
+                      base_weights_data, current_wmape,
                       n_perturbations=8, perturbation_scale=0.05):
     """
     Estimate gradient via random perturbations with antithetic sampling.
@@ -466,14 +502,14 @@ def perturbation_step(current_vec, ref_vec, tunable_keys, start_path, checkpoint
 
         plus_vec = current_vec + delta
         plus_wmape = evaluate_vector(plus_vec, ref_vec, tunable_keys, start_path,
-                                     checkpoints, seeds, base_weights_data)
+                                     checkpoints, base_weights_data)
         if plus_wmape < best_wmape:
             best_wmape = plus_wmape
             best_vec = plus_vec.copy()
 
         minus_vec = current_vec - delta
         minus_wmape = evaluate_vector(minus_vec, ref_vec, tunable_keys, start_path,
-                                      checkpoints, seeds, base_weights_data)
+                                      checkpoints, base_weights_data)
         if minus_wmape < best_wmape:
             best_wmape = minus_wmape
             best_vec = minus_vec.copy()
@@ -512,7 +548,7 @@ def load_checkpoint(path):
 # MAIN CALIBRATION LOOP
 # ---------------------------------------------------------------------------
 
-def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
+def run_calibration(start_path, checkpoint_paths,
                     epochs=50, lr=0.10, pop_size=None, verbose=True):
 
     endless = (epochs == 0)
@@ -547,11 +583,6 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
     n_weights = len(tunable_keys)
     ref_vec = weights_to_vector(default_weights, tunable_keys)
     current_vec = weights_to_vector(weights, tunable_keys)
-
-    # --- Seeds ---
-    n_train_seeds = min(50, max_seeds)
-    train_seeds = list(range(n_train_seeds))
-    all_seeds   = list(range(max_seeds))
 
     # --- CMA-ES ---
     norm_vec = normalize_weights(current_vec, ref_vec)
@@ -607,7 +638,7 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
             print(f"  Checkpoint:      {cp['path']} (year {cp['year']})")
         print(f"  Tunable weights: {n_weights}")
         print(f"  Calib variables: {len(CALIB_VAR_LIST)}")
-        print(f"  Seeds/epoch:     {n_train_seeds} (final eval: {max_seeds})")
+        print(f"  Seed:            0 (deterministic)")
         print(f"  CMA-ES pop:      {actual_pop_size} (mu={cma.mu})")
         print(f"  CMA-ES sigma:    {cma.sigma:.4f}")
         print(f"  Coord descent:   lr={lr}")
@@ -624,7 +655,7 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
     t0 = time.time()
 
     # Initial evaluation
-    init_wmape, init_errors = evaluate_weights_batch(start_path, checkpoints, weights, train_seeds)
+    init_wmape, init_errors = evaluate_weights_batch(start_path, checkpoints, weights)
     if init_wmape_saved is None:
         init_wmape_saved = init_wmape
     if init_wmape < best_wmape:
@@ -663,7 +694,7 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
             cand_vec = denormalize_weights(cand_norm, ref_vec)
             cand_vec = clamp_vector(cand_vec, ref_vec)
             fitness = evaluate_vector(cand_vec, ref_vec, tunable_keys, start_path,
-                                      checkpoints, train_seeds, best_weights_data)
+                                      checkpoints, best_weights_data)
             candidate_fitnesses.append(fitness)
 
             if fitness < best_wmape:
@@ -682,12 +713,12 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
         # STRATEGY 2: Coordinate descent
         # =================================================================
         weights._data = copy.deepcopy(best_weights_data)
-        _, cd_errors = evaluate_weights_batch(start_path, checkpoints, weights, train_seeds)
+        _, cd_errors = evaluate_weights_batch(start_path, checkpoints, weights)
 
         cd_lr = lr * max(0.3, min(2.0, best_wmape / 0.20))
         coord_descent_step(weights, cd_errors, lr_cd=cd_lr)
 
-        cd_wmape, _ = evaluate_weights_batch(start_path, checkpoints, weights, train_seeds)
+        cd_wmape, _ = evaluate_weights_batch(start_path, checkpoints, weights)
 
         if cd_wmape < best_wmape:
             best_wmape = cd_wmape
@@ -701,13 +732,16 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
         # =================================================================
         # STRATEGY 3: Stochastic perturbation
         # =================================================================
-        perturb_scale = 0.03 + 0.02 * min(stagnation_counter, 10)
+        # Scale up aggressively with stagnation: 0.03 → 0.05 → 0.13 → 0.33 → ...
+        perturb_scale = 0.03 * (1.3 ** min(stagnation_counter, 30))
+        perturb_scale = min(perturb_scale, 0.5)  # cap at 50% of weight magnitude
+        n_perturb = 8 + min(stagnation_counter // 10, 16)  # more tries when stuck
         current_vec = weights_to_vector(weights, tunable_keys)
 
         perturb_vec, perturb_wmape = perturbation_step(
             current_vec, ref_vec, tunable_keys, start_path, checkpoints,
-            train_seeds, best_weights_data, best_wmape,
-            n_perturbations=8, perturbation_scale=perturb_scale
+            best_weights_data, best_wmape,
+            n_perturbations=n_perturb, perturbation_scale=perturb_scale
         )
 
         if perturb_wmape < best_wmape:
@@ -719,17 +753,81 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
             cma.mean = normalize_weights(current_vec, ref_vec)
             strategy_used = "PERTURB"
 
+        # =================================================================
+        # STRATEGY 4: Individual weight probing (unmapped weights)
+        # =================================================================
+        # Run every 3 epochs or when stagnating, to keep it from slowing
+        # down the loop too much (it does max_probes sequential evals)
+        if epochs_this_run % 3 == 0 or stagnation_counter > 10:
+            weights._data = copy.deepcopy(best_weights_data)
+            probe_scale = 0.03 * (1.2 ** min(stagnation_counter, 20))
+            probe_scale = min(probe_scale, 0.3)
+            probe_wmape, probe_improved = individual_weight_probe(
+                weights, tunable_keys, start_path, checkpoints,
+                best_wmape, probe_scale=probe_scale, max_probes=20
+            )
+            if probe_improved:
+                best_wmape = probe_wmape
+                best_weights_data = copy.deepcopy(weights.data)
+                current_vec = weights_to_vector(weights, tunable_keys)
+                cma.mean = normalize_weights(current_vec, ref_vec)
+                strategy_used = "PROBE"
+            else:
+                weights._data = copy.deepcopy(best_weights_data)
+
         # Stagnation tracking
         if best_wmape >= epoch_best_wmape - 1e-6:
             stagnation_counter += 1
         else:
             stagnation_counter = 0
 
-        if stagnation_counter >= 15 and stagnation_counter % 10 == 0:
-            cma.sigma = min(0.5, cma.sigma * 2.0)
+        # --- ESCALATING STAGNATION RESPONSE ---
+        # Level 1 (25 epochs): Boost CMA sigma
+        # Level 2 (50 epochs): Full CMA restart (reset covariance matrix)
+        # Level 3 (100 epochs): Random restart — jump to a random point near best,
+        #                       evaluate, keep if better
+        if stagnation_counter == 25:
+            cma.sigma = 0.4
             if verbose:
-                print(f"  >>> Stagnation ({stagnation_counter} epochs) — "
+                print(f"  >>> Stagnation L1 ({stagnation_counter}) — "
                       f"boosting CMA sigma to {cma.sigma:.4f}", flush=True)
+
+        elif stagnation_counter > 0 and stagnation_counter % 50 == 0:
+            # Full CMA restart: keep the mean at best known, but reset
+            # the covariance matrix so it explores fresh directions
+            old_sigma = cma.sigma
+            best_norm = normalize_weights(current_vec, ref_vec)
+            cma = CMAES(best_norm, sigma0=0.3, pop_size=actual_pop_size)
+            if verbose:
+                print(f"  >>> Stagnation L2 ({stagnation_counter}) — "
+                      f"CMA-ES full restart (sigma 0.3, fresh covariance)", flush=True)
+
+        elif stagnation_counter > 0 and stagnation_counter % 100 == 0:
+            # Random restart: try a big random jump
+            jump_scale = 0.15
+            for attempt in range(5):
+                noise = np.random.randn(n_weights) * jump_scale
+                jump_vec = current_vec * (1 + noise)
+                jump_vec = clamp_vector(jump_vec, ref_vec)
+                jump_wmape = evaluate_vector(jump_vec, ref_vec, tunable_keys,
+                                             start_path, checkpoints, best_weights_data)
+                if jump_wmape < best_wmape:
+                    best_wmape = jump_wmape
+                    vector_to_weights(jump_vec, tunable_keys, weights)
+                    best_weights_data = copy.deepcopy(weights.data)
+                    current_vec = jump_vec.copy()
+                    cma.mean = normalize_weights(current_vec, ref_vec)
+                    stagnation_counter = 0
+                    strategy_used = "JUMP"
+                    if verbose:
+                        print(f"  >>> Random jump found improvement! "
+                              f"WMAPE={best_wmape:.4f}", flush=True)
+                    break
+                jump_scale *= 1.5  # try bigger jumps
+            else:
+                if verbose:
+                    print(f"  >>> Stagnation L3 ({stagnation_counter}) — "
+                          f"random jumps didn't help, continuing...", flush=True)
 
         epochs_this_run += 1
 
@@ -792,9 +890,9 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
     weights.save()
 
     if verbose:
-        print(f"\n  Running final evaluation with all {max_seeds} seeds...")
+        print(f"\n  Running final evaluation...")
 
-    final_wmape, final_errors = evaluate_weights_batch(start_path, checkpoints, weights, all_seeds)
+    final_wmape, final_errors = evaluate_weights_batch(start_path, checkpoints, weights)
     total_epochs_now = start_epoch + epochs_this_run
 
     if verbose:
@@ -843,7 +941,7 @@ def run_calibration(start_path, checkpoint_paths, max_seeds=1000,
     report = {
         "start_file": start_path,
         "checkpoints": [cp["path"] for cp in checkpoints],
-        "max_seeds": max_seeds,
+        "seed": 0,
         "epochs_this_run": epochs_this_run,
         "total_epochs_all_runs": total_epochs_now,
         "initial_wmape_this_run": float(init_wmape_saved),
@@ -885,17 +983,16 @@ def main():
         epilog="""Examples:
   python calibrate.py                          # 50 epochs (default)
   python calibrate.py --epochs 0               # endless (stop with kill/Ctrl+C)
-  python calibrate.py --max-seeds 200 --pop-size 20
+  python calibrate.py --pop-size 20
   python calibrate.py --reset                  # discard all progress
 
 Server usage:
-  nohup python calibrate.py --epochs 0 > calibrate.log 2>&1 &
+  nohup python -u calibrate.py --epochs 0 > calibrate.log 2>&1 &
   tail -f calibrate.log
   kill $(cat calibrate.pid)                    # graceful stop
 """)
     parser.add_argument("--start", default="input/spain_1994.json")
     parser.add_argument("--checkpoints", nargs="+", default=None)
-    parser.add_argument("--max-seeds", type=int, default=1000)
     parser.add_argument("--epochs", type=int, default=50,
                         help="Number of epochs (0 = endless until terminated)")
     parser.add_argument("--lr", type=float, default=0.10,
@@ -936,7 +1033,7 @@ Server usage:
             and json.load(open(os.path.join(input_dir, f))).get("start_year", 0) > start_year
         ])
 
-    run_calibration(args.start, args.checkpoints, args.max_seeds,
+    run_calibration(args.start, args.checkpoints,
                     args.epochs, args.lr, args.pop_size, not args.quiet)
 
 
