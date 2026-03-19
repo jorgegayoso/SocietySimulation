@@ -288,7 +288,11 @@ def apply_economic_model(state, action, rng, w):
                   policy_growth + business_boost + infra_boost + rd_boost +
                   demo_effect + debt_drag + tourism_effect + shock + regulation_drag)
     eco.gdp_growth_rate = max(w[g+"growth_min"], min(w[g+"growth_max"], new_growth))
-    eco.gdp_billion_eur *= (1 + eco.gdp_growth_rate)
+    # GDP level grows nominally: real growth + inflation
+    # (The target data — spain_2024.json etc — uses nominal GDP in current euros,
+    #  so the simulation must compound both real growth and inflation.)
+    nominal_growth = eco.gdp_growth_rate + eco.inflation_rate
+    eco.gdp_billion_eur *= (1 + nominal_growth)
     eco.gdp_per_capita_eur = (eco.gdp_billion_eur * 1e9) / (demo.population_million * 1e6)
 
     i = "economy.inflation."
