@@ -844,6 +844,27 @@ def run_calibration(start_path, checkpoint_paths,
                   f"| {strategy_used or 'none':>7}{improved}",
                   flush=True)
 
+            # Periodic diagnostic: every 50 epochs or on first stagnation hit,
+            # print per-variable error breakdown so we can see what's blocking progress
+            if epochs_this_run % 50 == 0 or stagnation_counter == 25:
+                weights._data = copy.deepcopy(best_weights_data)
+                _, diag_errors = evaluate_weights_batch(start_path, checkpoints, weights)
+                total_cw = CALIB_WEIGHTS.sum()
+                print(f"\n  --- Per-variable error breakdown (WMAPE contribution) ---")
+                var_contributions = []
+                for vi, var in enumerate(CALIB_VAR_LIST):
+                    contrib = abs(diag_errors[vi]) * CALIB_WEIGHTS[vi] / total_cw
+                    var_contributions.append((var, diag_errors[vi], contrib))
+                var_contributions.sort(key=lambda x: -x[2])
+                cumulative = 0.0
+                for var, err, contrib in var_contributions:
+                    cumulative += contrib
+                    bar = "#" * int(contrib / best_wmape * 40)
+                    print(f"    {var.split('.')[-1]:<35} err={err:+.4f}  "
+                          f"contrib={contrib:.4f} cum={cumulative:.4f} {bar}")
+                print(f"  --- Total WMAPE: {sum(c for _,_,c in var_contributions):.4f} ---\n",
+                      flush=True)
+
         history.append({
             "epoch": epoch + 1,
             "best_wmape": float(best_wmape),
