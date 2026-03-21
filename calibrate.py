@@ -263,20 +263,20 @@ VAR_TO_WEIGHTS = {
     "economy.gdp_billion_eur": [("economy.gdp.base_growth",+1),("economy.gdp.base_growth_weight",+1)],
     "economy.gdp_growth_rate": [("economy.gdp.base_growth",+1),("economy.gdp.mean_reversion_speed",+1)],
     "economy.gdp_per_capita_eur": [("economy.gdp.base_growth",+1)],
-    "economy.unemployment_rate": [("economy.structural_unemployment.initial_floor",+1),("economy.structural_unemployment.floor_decay_per_year",-1),("economy.structural_unemployment.hysteresis_coeff",+1)],
+    "economy.unemployment_rate": [("economy.structural_unemployment.initial_floor",+1),("economy.structural_unemployment.floor_decay_per_year",-1),("economy.structural_unemployment.hysteresis_coeff",+1),("economy.structural_unemployment.boom_absorption_rate",-1),("economy.unemployment.okun_coeff",-1)],
     "economy.youth_unemployment_rate": [("economy.unemployment.youth_multiplier",+1)],
-    "economy.inflation_rate": [("economy.inflation.base_rate",+1),("economy.inflation.demand_pull_coeff",+1)],
+    "economy.inflation_rate": [("economy.inflation.base_rate",+1),("economy.inflation.demand_pull_coeff",+1),("economy.inflation.inertia",+1)],
     "economy.public_debt_pct_gdp": [("economy.government_finances.surplus_debt_reduction",-1),("economy.government_finances.other_spending",+1),("economy.government_finances.austerity_spending_coeff",-1)],
     "economy.tax_revenue_pct_gdp": [("economy.government_finances.tax_auto_stabilizer",+1)],
     "economy.gov_spending_pct_gdp": [("economy.government_finances.other_spending",+1),("economy.government_finances.unemployment_auto_stabilizer_coeff",+1)],
     "economy.avg_annual_wage_eur": [("economy.wages.gdp_passthrough",+1),("economy.wages.inflation_passthrough",+1)],
-    "economy.interest_rate": [("economy.interest_rate.regime_convergence_speed",+1)],
+    "economy.interest_rate": [("economy.interest_rate.regime_convergence_speed",+1),("economy.interest_rate.inflation_response",+1)],
     "economy.housing_price_index": [("economy.housing.demand_pressure_coeff",+1),("economy.housing.immigration_pressure_coeff",+1)],
     "demographics.population_million": [("demographics.migration.pull_factor_coeff",+1),("demographics.population.natural_growth_coeff",+1)],
     "demographics.fertility_rate": [("demographics.fertility.affordability_coeff",+1),("demographics.fertility.immigration_fertility_boost",+1)],
     "demographics.life_expectancy": [("demographics.life_expectancy.healthcare_coeff",+1)],
     "demographics.pct_over_65": [("demographics.age_structure.aging_rate",+1)],
-    "demographics.net_migration_per_1000": [("demographics.migration.pull_factor_coeff",+1),("demographics.migration.openness_coeff",+1)],
+    "demographics.net_migration_per_1000": [("demographics.migration.pull_factor_coeff",+1),("demographics.migration.openness_coeff",+1),("demographics.migration.gdp_pull_coeff",+1),("demographics.migration.gdp_pull_baseline",-1)],
     "social.life_satisfaction": [("social.life_satisfaction.adaptation_speed",+1),("social.life_satisfaction.income_baseline",-1)],
     "social.gini_coefficient": [("social.inequality.unemployment_coeff",+1),("social.inequality.tax_coeff",+1)],
     "social.poverty_rate": [("social.poverty.base",+1),("social.poverty.unemployment_coeff",+1)],
@@ -480,6 +480,374 @@ def individual_weight_probe(weights, tunable_keys, start_path, checkpoints,
     return best_wmape, improved
 
 
+# Coupled weight groups: each defines a DIRECTION to search along.
+# The optimizer tries multiple scales (1% to 200%) in each direction.
+# "direction" is a multiplier relative to current value: >1 = increase, <1 = decrease.
+COUPLED_WEIGHT_GROUPS = [
+    {
+        "name": "migration_boost",
+        "weights": {
+            "demographics.migration.pull_factor_coeff": "flip_positive",  # special: flip sign if negative
+            "demographics.migration.gdp_pull_coeff": 1.5,     # increase
+            "demographics.migration.gdp_pull_baseline": 0.5,  # decrease (lower baseline = stronger effect)
+            "demographics.migration.openness_coeff": 1.3,     # increase
+        }
+    },
+    {
+        "name": "unemployment_fix",
+        "weights": {
+            "economy.structural_unemployment.floor_decay_per_year": 1.5,  # faster decay = lower floor
+            "economy.structural_unemployment.hysteresis_coeff": 1.5,      # stronger pull toward floor
+            "economy.structural_unemployment.boom_absorption_rate": 1.3,  # booms reduce unemp more
+            "economy.structural_unemployment.initial_floor": 0.8,        # lower starting floor
+        }
+    },
+    {
+        "name": "inflation_raise",
+        "weights": {
+            "economy.inflation.inertia": 0.85,           # lower inertia frees inflation to adjust
+            "economy.inflation.demand_pull_coeff": 1.4,   # growth -> more inflation
+            "economy.inflation.base_rate": 1.5,           # higher base inflation rate
+            "economy.inflation.spending_pressure_coeff": 1.3,  # spending -> more inflation
+        }
+    },
+    {
+        "name": "inflation_lower",
+        "weights": {
+            "economy.inflation.inertia": 0.8,
+            "economy.inflation.demand_pull_coeff": 0.7,
+            "economy.inflation.base_rate": 0.5,
+        }
+    },
+    {
+        "name": "growth_moderate",
+        "weights": {
+            "economy.gdp.base_growth_weight": 0.8,
+            "economy.gdp.momentum_factor": 0.7,
+            "economy.gdp.mean_reversion_speed": 1.5,
+        }
+    },
+    {
+        "name": "growth_boost",
+        "weights": {
+            "economy.gdp.base_growth_weight": 1.3,
+            "economy.gdp.base_growth": 1.3,
+            "economy.gdp.infra_boost": 1.3,
+        }
+    },
+    {
+        "name": "housing_boost",
+        "weights": {
+            "economy.housing.demand_pressure_coeff": 1.5,
+            "economy.housing.immigration_pressure_coeff": 1.5,
+            "economy.housing.interest_rate_effect": 1.3,
+        }
+    },
+    {
+        "name": "wage_inflation_link",
+        "weights": {
+            "economy.wages.inflation_passthrough": 1.3,
+            "economy.wages.gdp_passthrough": 0.9,
+            "economy.inflation.demand_pull_coeff": 1.2,
+        }
+    },
+]
+
+
+# ---------------------------------------------------------------------------
+# CORE DYNAMICS GRID SEARCH
+# ---------------------------------------------------------------------------
+# The optimizer often gets trapped in degenerate basins where key weights
+# have wrong signs, near-zero values with compensating huge multipliers,
+# or absurd thresholds. This grid search explores diverse configurations
+# of the most critical "core dynamics" weights to find better basins.
+#
+# Key degenerate patterns to escape:
+#   - inflation.monetary_coeff near zero with monetary_baseline near zero
+#   - inflation.inertia too low (inflation doesn't persist)
+#   - unemployment.okun_coeff near zero (Okun's law disabled)
+#   - migration.pull_factor_coeff negative (economic pull repels migrants)
+#   - gdp.base_growth near zero with huge base_growth_weight
+
+CORE_DYNAMICS_GRID = {
+    # INFLATION — most commonly degenerate
+    "economy.inflation.inertia": [0.1, 0.35, 0.55, 0.7, 0.85],
+    "economy.inflation.monetary_baseline": [0.0001, 0.01, 0.02, 0.04, 0.06],
+    "economy.inflation.demand_pull_coeff": [0.2, 0.5, 1.0, 1.9],
+    "economy.inflation.base_rate": [-0.003, 0.005, 0.015],
+}
+
+
+def _safe_coord_descent(w, start_path, checkpoints, n_rounds=20, lr=0.10):
+    """Coord descent with revert-if-worse after each round."""
+    local_wmape, errors = evaluate_weights_batch(start_path, checkpoints, w)
+    local_best_data = copy.deepcopy(w._data)
+    for _ in range(n_rounds):
+        coord_descent_step(w, errors, lr_cd=lr)
+        wmape, errors = evaluate_weights_batch(start_path, checkpoints, w)
+        if wmape < local_wmape:
+            local_wmape = wmape
+            local_best_data = copy.deepcopy(w._data)
+        else:
+            w._data = copy.deepcopy(local_best_data)
+            _, errors = evaluate_weights_batch(start_path, checkpoints, w)
+    return local_wmape, local_best_data
+
+
+def grid_search_initialization(weights, start_path, checkpoints, verbose=True):
+    """
+    Escape degenerate weight basins via adaptive subsystem search.
+
+    Searches subsystems one at a time (inflation, GDP, unemployment,
+    migration) with ranges that include the CURRENT value plus several
+    alternatives. Each subsystem search uses safe coord descent
+    (revert-if-worse) so it can only improve or stay the same.
+
+    The search is sequential: each phase builds on the best result
+    from the previous phase. Because the current value is always
+    in the grid, this can never make things worse.
+
+    Returns:
+        (best_wmape, best_weights_data, improved)
+    """
+    import itertools
+
+    base_data = copy.deepcopy(weights._data)
+
+    best_wmape, _ = evaluate_weights_batch(start_path, checkpoints, weights)
+    best_data = copy.deepcopy(base_data)
+    initial_wmape = best_wmape
+
+    if verbose:
+        print(f"\n  --- Adaptive Grid Search ---")
+        print(f"  Current WMAPE: {best_wmape:.4f}")
+
+    def _build_range(current, alternatives):
+        """Current value + alternatives, deduplicated."""
+        values = [current] + alternatives
+        unique = []
+        for v in values:
+            if not any(abs(v - u) < abs(u) * 0.01 + 1e-10 for u in unique):
+                unique.append(v)
+        return unique
+
+    def _search_subsystem(name, grid, search_base, best_wmape, best_data,
+                          cd_rounds=15):
+        keys = list(grid.keys())
+        value_lists = [grid[k] for k in keys]
+        all_combos = list(itertools.product(*value_lists))
+        if verbose:
+            dims = " × ".join(str(len(v)) for v in value_lists)
+            print(f"  {name}: {len(all_combos)} configs ({dims})")
+        for combo in all_combos:
+            config = dict(zip(keys, combo))
+            w = Weights.__new__(Weights)
+            w._data = copy.deepcopy(search_base)
+            w.path = ""
+            for k, v in config.items():
+                w.set(k, v)
+            local_wmape, local_data = _safe_coord_descent(
+                w, start_path, checkpoints, n_rounds=cd_rounds, lr=0.10)
+            if local_wmape < best_wmape:
+                best_wmape = local_wmape
+                best_data = copy.deepcopy(local_data)
+                if verbose:
+                    vals = " ".join(f"{k.split('.')[-1]}={v:.4g}"
+                                   for k, v in config.items())
+                    print(f"    WMAPE={local_wmape:.4f}  ({vals})")
+        return best_wmape, best_data
+
+    # Access nested dict values
+    def _g(d, path):
+        for p in path.split("."):
+            d = d[p]
+        return d
+
+    # ------------------------------------------------------------------
+    # Search each subsystem sequentially, building on prior improvements
+    # ------------------------------------------------------------------
+    search_base = copy.deepcopy(base_data)
+
+    # 1. Inflation
+    cur = _g(search_base, "economy.inflation")
+    infl_grid = {
+        "economy.inflation.inertia":
+            _build_range(cur["inertia"], [0.15, 0.3, 0.45, 0.6, 0.75]),
+        "economy.inflation.monetary_baseline":
+            _build_range(cur["monetary_baseline"], [0.005, 0.015, 0.03, 0.05]),
+        "economy.inflation.demand_pull_coeff":
+            _build_range(cur["demand_pull_coeff"], [0.2, 0.5, 0.8, 1.2]),
+    }
+    best_wmape, best_data = _search_subsystem(
+        "Inflation", infl_grid, search_base, best_wmape, best_data)
+    if best_wmape < initial_wmape:
+        search_base = copy.deepcopy(best_data)
+
+    # 2. GDP dynamics
+    cur = _g(search_base, "economy.gdp")
+    gdp_grid = {
+        "economy.gdp.base_growth":
+            _build_range(cur["base_growth"], [0.003, 0.008, 0.015, 0.025]),
+        "economy.gdp.base_growth_weight":
+            _build_range(cur["base_growth_weight"], [0.5, 1.0, 3.0, 6.0]),
+        "economy.gdp.mean_reversion_speed":
+            _build_range(cur["mean_reversion_speed"], [0.02, 0.06, 0.12, 0.2]),
+    }
+    best_wmape, best_data = _search_subsystem(
+        "GDP", gdp_grid, search_base, best_wmape, best_data)
+    if best_wmape < initial_wmape:
+        search_base = copy.deepcopy(best_data)
+
+    # 3. Unemployment
+    cur_u = _g(search_base, "economy.unemployment")
+    unemp_grid = {
+        "economy.unemployment.okun_coeff":
+            _build_range(cur_u["okun_coeff"], [-0.4, -0.2, -0.08, -0.01]),
+        "economy.unemployment.okun_trend":
+            _build_range(cur_u["okun_trend"], [0.02, 0.05, 0.15, 0.5]),
+    }
+    best_wmape, best_data = _search_subsystem(
+        "Unemployment", unemp_grid, search_base, best_wmape, best_data,
+        cd_rounds=10)
+    if best_wmape < initial_wmape:
+        search_base = copy.deepcopy(best_data)
+
+    # 4. Migration
+    cur_m = _g(search_base, "demographics.migration")
+    mig_grid = {
+        "demographics.migration.pull_factor_coeff":
+            _build_range(cur_m["pull_factor_coeff"],
+                         [-0.5, 0.5, 1.5, 3.0, 5.0]),
+        "demographics.migration.gdp_pull_baseline":
+            _build_range(cur_m["gdp_pull_baseline"],
+                         [12000, 20000, 35000, 50000]),
+    }
+    best_wmape, best_data = _search_subsystem(
+        "Migration", mig_grid, search_base, best_wmape, best_data,
+        cd_rounds=10)
+
+    # ------------------------------------------------------------------
+    # Phase 2: Final polish with individual probing
+    # ------------------------------------------------------------------
+    if best_wmape < initial_wmape:
+        w = Weights.__new__(Weights)
+        w._data = copy.deepcopy(best_data)
+        w.path = ""
+        tunable = get_tunable_keys(w)
+        for _ in range(5):
+            pw, pi2 = individual_weight_probe(
+                w, tunable, start_path, checkpoints,
+                best_wmape, probe_scale=0.04, max_probes=30)
+            if pi2:
+                best_wmape = pw
+                best_data = copy.deepcopy(w._data)
+            else:
+                break
+        if verbose:
+            print(f"  After probing: {best_wmape:.4f}")
+
+    improved = best_wmape < initial_wmape - 1e-6
+    if verbose:
+        if improved:
+            print(f"  Grid search: {initial_wmape:.4f} -> {best_wmape:.4f} "
+                  f"({(1-best_wmape/initial_wmape)*100:.1f}% improvement)")
+        else:
+            print(f"  Grid search: no improvement (best remains {initial_wmape:.4f})")
+
+    return best_wmape, best_data, improved
+
+
+def coupled_descent_step(weights, start_path, checkpoints, best_wmape, verbose=False):
+    """
+    For each coupled group, try moving ALL weights in the group simultaneously
+    at multiple scales. This breaks correlated local minima by making coordinated
+    changes that no single-weight optimizer can find.
+    
+    Uses a line search: try the direction at scales 0.05, 0.1, 0.2, 0.5, 1.0, 2.0
+    (where 1.0 = full step as defined in the group). Keeps the best scale.
+    Also tries the inverse direction at the same scales.
+    """
+    improved = False
+    scales = [0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0]
+
+    for group in COUPLED_WEIGHT_GROUPS:
+        # Save current values
+        saved = {}
+        for wpath in group["weights"]:
+            cur = weights.get(wpath)
+            if cur is not None:
+                saved[wpath] = cur
+
+        if not saved:
+            continue
+
+        # Try both the forward and inverse direction
+        for direction_sign in [+1, -1]:
+            best_scale_wmape = best_wmape
+            best_scale = None
+
+            for scale in scales:
+                # Apply scaled adjustments
+                for wpath, target_mult in group["weights"].items():
+                    cur = saved.get(wpath)
+                    if cur is None:
+                        continue
+
+                    if target_mult == "flip_positive":
+                        # Special: interpolate toward |cur| (flip sign if negative)
+                        target = abs(cur) * 3.0  # target is positive and larger
+                        new_val = cur + direction_sign * scale * (target - cur)
+                    else:
+                        # Interpolate: cur + scale * (cur * mult - cur) = cur * (1 + scale * (mult - 1))
+                        if direction_sign > 0:
+                            mult = target_mult
+                        else:
+                            mult = 1.0 / target_mult  # inverse direction
+                        new_val = cur * (1 + scale * (mult - 1))
+
+                    weights.set(wpath, new_val)
+
+                wmape, _ = evaluate_weights_batch(start_path, checkpoints, weights)
+
+                if wmape < best_scale_wmape:
+                    best_scale_wmape = wmape
+                    best_scale = (scale, direction_sign)
+
+                # Revert for next scale
+                for wpath, cur in saved.items():
+                    weights.set(wpath, cur)
+
+            # If we found an improvement, apply the best scale permanently
+            if best_scale is not None and best_scale_wmape < best_wmape:
+                scale, dsign = best_scale
+                for wpath, target_mult in group["weights"].items():
+                    cur = saved.get(wpath)
+                    if cur is None:
+                        continue
+                    if target_mult == "flip_positive":
+                        target = abs(cur) * 3.0
+                        new_val = cur + dsign * scale * (target - cur)
+                    else:
+                        mult = target_mult if dsign > 0 else 1.0 / target_mult
+                        new_val = cur * (1 + scale * (mult - 1))
+                    weights.set(wpath, new_val)
+
+                best_wmape = best_scale_wmape
+                improved = True
+                if verbose:
+                    print(f"    >>> Coupled '{group['name']}' scale={scale:.2f} "
+                          f"dir={'fwd' if dsign>0 else 'inv'} -> WMAPE={best_wmape:.4f}",
+                          flush=True)
+                # Update saved values for subsequent groups
+                for wpath in group["weights"]:
+                    cur = weights.get(wpath)
+                    if cur is not None:
+                        saved[wpath] = cur
+                break  # don't try inverse if forward worked
+
+    return best_wmape, improved
+
+
 # ---------------------------------------------------------------------------
 # STOCHASTIC PERTURBATION
 # ---------------------------------------------------------------------------
@@ -549,7 +917,8 @@ def load_checkpoint(path):
 # ---------------------------------------------------------------------------
 
 def run_calibration(start_path, checkpoint_paths,
-                    epochs=50, lr=0.10, pop_size=None, verbose=True):
+                    epochs=50, lr=0.10, pop_size=None, verbose=True,
+                    grid_threshold=0.20, force_grid=False):
 
     endless = (epochs == 0)
 
@@ -579,6 +948,29 @@ def run_calibration(start_path, checkpoint_paths,
 
     default_weights = Weights(default_path)
 
+    # Merge any NEW keys from default.json into tuned.json so they become tunable.
+    # This handles the case where engine.py uses w.get(key, fallback) for weights
+    # that were never in the JSON — adding them to default.json makes them visible
+    # to the calibrator, but only if they also get into tuned.json.
+    def _deep_merge(src, dst):
+        """Recursively copy keys from src into dst where dst is missing them."""
+        count = 0
+        for k, v in src.items():
+            if k.startswith("_"):
+                continue
+            if k not in dst:
+                dst[k] = copy.deepcopy(v)
+                count += 1
+            elif isinstance(v, dict) and isinstance(dst.get(k), dict):
+                count += _deep_merge(v, dst[k])
+        return count
+
+    merged_count = _deep_merge(default_weights.data, weights._data)
+    if merged_count > 0:
+        weights.save()
+        if verbose:
+            print(f"  Merged {merged_count} new weight(s) from default.json into tuned.json")
+
     tunable_keys = get_tunable_keys(weights)
     n_weights = len(tunable_keys)
     ref_vec = weights_to_vector(default_weights, tunable_keys)
@@ -606,16 +998,48 @@ def run_calibration(start_path, checkpoint_paths,
     if os.path.isfile(ckpt_path):
         try:
             ckpt = load_checkpoint(ckpt_path)
-            cma.set_state(ckpt["cma_state"])
             start_epoch = ckpt["epoch"]
             best_wmape = ckpt["best_wmape"]
             best_weights_data = ckpt["best_weights_data"]
             history = ckpt.get("history", [])
             init_wmape_saved = ckpt.get("init_wmape")
-            if "best_vec" in ckpt:
-                current_vec = np.array(ckpt["best_vec"])
+
+            # Merge new keys into best_weights_data from default
+            # (same as we did for tuned.json above)
+            def _deep_merge(src, dst):
+                """Copy keys from src into dst where dst is missing them."""
+                count = 0
+                for k, v in src.items():
+                    if k.startswith("_"):
+                        continue
+                    if k not in dst:
+                        dst[k] = copy.deepcopy(v)
+                        count += 1
+                    elif isinstance(v, dict) and isinstance(dst.get(k), dict):
+                        count += _deep_merge(v, dst[k])
+                return count
+            merge_count = _deep_merge(default_weights.data, best_weights_data)
+            if merge_count > 0 and verbose:
+                print(f"  Merged {merge_count} new key(s) into checkpoint best_weights")
+
+            # Check if CMA dimensions match (new tunable keys = different dimension)
+            ckpt_cma_dim = len(ckpt["cma_state"]["mean"])
+            if ckpt_cma_dim == n_weights:
+                cma.set_state(ckpt["cma_state"])
+                if "best_vec" in ckpt:
+                    current_vec = np.array(ckpt["best_vec"])
+                    norm_vec = normalize_weights(current_vec, ref_vec)
+                    cma.mean = norm_vec.copy()
+            else:
+                # Dimensions changed — new weights were added. Reset CMA but keep
+                # the best weights and epoch counter so we don't lose calibration progress.
+                current_vec = weights_to_vector(weights, tunable_keys)
                 norm_vec = normalize_weights(current_vec, ref_vec)
-                cma.mean = norm_vec.copy()
+                cma = CMAES(norm_vec, sigma0=0.3, pop_size=actual_pop_size)
+                if verbose:
+                    print(f"  CMA dimensions changed ({ckpt_cma_dim} -> {n_weights}) — "
+                          f"fresh CMA, keeping best weights & epoch")
+
             if verbose:
                 print(f"  Resumed from checkpoint at epoch {start_epoch} "
                       f"(best WMAPE: {best_wmape:.4f}, CMA gen: {cma.gen})")
@@ -643,6 +1067,7 @@ def run_calibration(start_path, checkpoint_paths,
         print(f"  CMA-ES sigma:    {cma.sigma:.4f}")
         print(f"  Coord descent:   lr={lr}")
         print(f"  Perturbation:    8 directions, scale=0.05")
+        print(f"  Grid search:     threshold={grid_threshold}, force={'yes' if force_grid else 'no'}")
         print(f"  Output:          {tuned_path}")
         print(f"  PID:             {pid_path} ({os.getpid()})")
         if best_wmape < 999:
@@ -667,6 +1092,37 @@ def run_calibration(start_path, checkpoint_paths,
         for k, v in top_errs:
             print(f"    {k.split('.')[-1]:<35} {v:+.4f}")
         print()
+
+    # --- GRID SEARCH INITIALIZATION ---
+    # On fresh starts OR when resuming with high WMAPE, run a grid search
+    # over core dynamics weights to escape degenerate basins.
+    # This is the key innovation: the optimizer gets trapped when weights
+    # form coupled pathological configurations that no single-weight change
+    # can escape. The grid search tests diverse core dynamics configurations.
+    grid_threshold_val = 999.0 if force_grid else grid_threshold
+    if force_grid or (grid_threshold > 0 and best_wmape > grid_threshold):
+        if verbose:
+            if force_grid:
+                print(f"  FORCED grid search (--force-grid) — current WMAPE: {best_wmape:.4f}",
+                      flush=True)
+            else:
+                print(f"  WMAPE ({best_wmape:.4f}) > {grid_threshold} — running grid search...",
+                      flush=True)
+        weights._data = copy.deepcopy(best_weights_data)
+        grid_wmape, grid_data, grid_improved = grid_search_initialization(
+            weights, start_path, checkpoints, verbose=verbose)
+        if grid_improved:
+            best_wmape = grid_wmape
+            best_weights_data = copy.deepcopy(grid_data)
+            weights._data = copy.deepcopy(grid_data)
+            current_vec = weights_to_vector(weights, tunable_keys)
+            norm_vec = normalize_weights(current_vec, ref_vec)
+            cma = CMAES(norm_vec, sigma0=0.2, pop_size=actual_pop_size)
+            if verbose:
+                print(f"  Grid search improved WMAPE to {best_wmape:.4f} — "
+                      f"CMA-ES restarted from new basin\n", flush=True)
+        else:
+            weights._data = copy.deepcopy(best_weights_data)
 
     epoch = start_epoch
     epochs_this_run = 0
@@ -775,6 +1231,24 @@ def run_calibration(start_path, checkpoint_paths,
             else:
                 weights._data = copy.deepcopy(best_weights_data)
 
+        # =================================================================
+        # STRATEGY 5: Coupled multi-weight descent (breaks correlated traps)
+        # =================================================================
+        # Run every 5 epochs or when stagnating
+        if epochs_this_run % 5 == 0 or stagnation_counter > 5:
+            weights._data = copy.deepcopy(best_weights_data)
+            coupled_wmape, coupled_improved = coupled_descent_step(
+                weights, start_path, checkpoints, best_wmape, verbose=verbose
+            )
+            if coupled_improved:
+                best_wmape = coupled_wmape
+                best_weights_data = copy.deepcopy(weights.data)
+                current_vec = weights_to_vector(weights, tunable_keys)
+                cma.mean = normalize_weights(current_vec, ref_vec)
+                strategy_used = "COUPLED"
+            else:
+                weights._data = copy.deepcopy(best_weights_data)
+
         # Stagnation tracking
         if best_wmape >= epoch_best_wmape - 1e-6:
             stagnation_counter += 1
@@ -828,6 +1302,33 @@ def run_calibration(start_path, checkpoint_paths,
                 if verbose:
                     print(f"  >>> Stagnation L3 ({stagnation_counter}) — "
                           f"random jumps didn't help, continuing...", flush=True)
+
+        # Level 4 (200 epochs): Grid search — systematically explore core
+        # dynamics configurations to find a completely new basin
+        if stagnation_counter > 0 and stagnation_counter % 200 == 0:
+            if verbose:
+                print(f"  >>> Stagnation L4 ({stagnation_counter}) — "
+                      f"running grid search over core dynamics...", flush=True)
+            weights._data = copy.deepcopy(best_weights_data)
+            grid_wmape, grid_data, grid_improved = grid_search_initialization(
+                weights, start_path, checkpoints, verbose=verbose)
+            if grid_improved:
+                best_wmape = grid_wmape
+                best_weights_data = copy.deepcopy(grid_data)
+                weights._data = copy.deepcopy(grid_data)
+                current_vec = weights_to_vector(weights, tunable_keys)
+                cma.mean = normalize_weights(current_vec, ref_vec)
+                # Full CMA restart from the new basin
+                cma = CMAES(cma.mean.copy(), sigma0=0.2, pop_size=actual_pop_size)
+                stagnation_counter = 0
+                strategy_used = "GRID"
+                if verbose:
+                    print(f"  >>> Grid search found new basin! "
+                          f"WMAPE={best_wmape:.4f}", flush=True)
+            else:
+                weights._data = copy.deepcopy(best_weights_data)
+                if verbose:
+                    print(f"  >>> Grid search didn't find improvement", flush=True)
 
         epochs_this_run += 1
 
@@ -1006,6 +1507,9 @@ def main():
   python calibrate.py --epochs 0               # endless (stop with kill/Ctrl+C)
   python calibrate.py --pop-size 20
   python calibrate.py --reset                  # discard all progress
+  python calibrate.py --force-grid             # force grid search over core dynamics
+  python calibrate.py --grid-threshold 0.25    # grid search if WMAPE > 0.25
+  python calibrate.py --grid-threshold 0       # disable grid search
 
 Server usage:
   nohup python -u calibrate.py --epochs 0 > calibrate.log 2>&1 &
@@ -1023,6 +1527,10 @@ Server usage:
     parser.add_argument("-q", "--quiet", action="store_true")
     parser.add_argument("--reset", action="store_true",
                         help="Discard all previous calibration and start fresh")
+    parser.add_argument("--grid-threshold", type=float, default=0.20,
+                        help="Run grid search if WMAPE > this (default: 0.20, 0=disable)")
+    parser.add_argument("--force-grid", action="store_true",
+                        help="Force grid search even if WMAPE is below threshold")
     args = parser.parse_args()
 
     if args.reset:
@@ -1055,7 +1563,9 @@ Server usage:
         ])
 
     run_calibration(args.start, args.checkpoints,
-                    args.epochs, args.lr, args.pop_size, not args.quiet)
+                    args.epochs, args.lr, args.pop_size, not args.quiet,
+                    grid_threshold=args.grid_threshold,
+                    force_grid=args.force_grid)
 
 
 if __name__ == "__main__":

@@ -299,8 +299,13 @@ def apply_economic_model(state, action, rng, w):
     spending_pressure = (action.gov_spending_mult - 1.0) * w[i+"spending_pressure_coeff"]
     demand_pull = max(0, eco.gdp_growth_rate - w[i+"demand_pull_threshold"]) * w[i+"demand_pull_coeff"]
     monetary = (eco.interest_rate - w[i+"monetary_baseline"]) * w[i+"monetary_coeff"]
-    eco.inflation_rate = max(w[i+"min"], min(w[i+"max"],
-        w[i+"base_rate"] + spending_pressure + demand_pull + monetary + rng.gauss(0, w[i+"shock_std"])))
+    # Inflation has inertia — it doesn't reset to base_rate each year.
+    # Real inflation is sticky: expectations, wage contracts, indexation.
+    # The model blends the base rate with the previous year's inflation.
+    inertia = w.get(i+"inertia", 0.5)
+    target_inflation = w[i+"base_rate"] + spending_pressure + demand_pull + monetary
+    new_inflation = inertia * eco.inflation_rate + (1 - inertia) * target_inflation + rng.gauss(0, w[i+"shock_std"])
+    eco.inflation_rate = max(w[i+"min"], min(w[i+"max"], new_inflation))
 
     u = "economy.unemployment."
     su = "economy.structural_unemployment."
@@ -395,15 +400,26 @@ def apply_economic_model(state, action, rng, w):
     # The ECB (or Bank of Spain pre-1999) targets different rates in different eras.
     # The rate converges toward the regime target, with inflation deviations on top.
     regimes = w.get("economy.interest_rate.regimes", [])
+    if not regimes:
+        # Historical fallback: actual ECB/BoS rate regimes for Spain
+        # These capture the major monetary policy eras that shaped Spain's economy.
+        regimes = [
+            {"start_year": 1994, "end_year": 1998, "target_rate": 0.06},   # Pre-Euro: BoS convergence
+            {"start_year": 1999, "end_year": 2001, "target_rate": 0.035},  # Early Euro
+            {"start_year": 2002, "end_year": 2005, "target_rate": 0.02},   # Low rates era
+            {"start_year": 2006, "end_year": 2008, "target_rate": 0.04},   # Pre-crisis tightening
+            {"start_year": 2009, "end_year": 2015, "target_rate": 0.005},  # Crisis: near-zero rates
+            {"start_year": 2016, "end_year": 2021, "target_rate": 0.0},    # Negative/zero rate era
+            {"start_year": 2022, "end_year": 2024, "target_rate": 0.04},   # Post-COVID tightening
+            {"start_year": 2025, "end_year": 2100, "target_rate": 0.03},   # Projected neutral rate
+        ]
     regime_target = w.get(ir+"inflation_target", 0.02)  # fallback
     for regime in regimes:
         if regime["start_year"] <= state.year <= regime["end_year"]:
             regime_target = regime["target_rate"]
             break
     convergence = w.get(ir+"regime_convergence_speed", 0.3)
-    # Converge toward regime target
     eco.interest_rate += (regime_target - eco.interest_rate) * convergence
-    # Small inflation deviation response on top
     eco.interest_rate += (eco.inflation_rate - w[ir+"inflation_target"]) * w[ir+"inflation_response"] * 0.3
     eco.interest_rate = max(w[ir+"min"], min(w[ir+"max"], eco.interest_rate))
 
@@ -426,9 +442,13 @@ def apply_demographic_model(state, action, rng, w):
     demo.life_expectancy = max(w[le+"min"], min(w[le+"max"], demo.life_expectancy))
 
     m = "demographics.migration."
+    # Migration is driven by economic attractiveness, policy openness, and era-specific patterns.
+    # Spain had near-zero migration pre-2000, massive inflows 2000-2008, negative 2009-2013,
+    # and rising again 2014+. The GDP-per-capita effect captures the main economic pull.
     pull = (1 - eco.unemployment_rate) * w[m+"pull_factor_coeff"]
+    gdp_pull = (eco.gdp_per_capita_eur / max(1.0, w.get(m+"gdp_pull_baseline", 20000.0))) * w.get(m+"gdp_pull_coeff", 2.0)
     openness = (action.immigration_openness_mult - w[m+"openness_baseline"]) * w[m+"openness_coeff"]
-    demo.net_migration_per_1000 = max(w[m+"min"], min(w[m+"max"], pull + openness + rng.gauss(0, w[m+"shock_std"])))
+    demo.net_migration_per_1000 = max(w[m+"min"], min(w[m+"max"], pull + gdp_pull + openness + rng.gauss(0, w[m+"shock_std"])))
 
     p = "demographics.population."
     natural = (demo.fertility_rate / w[p+"natural_growth_replacement"] - 1) * w[p+"natural_growth_coeff"]
